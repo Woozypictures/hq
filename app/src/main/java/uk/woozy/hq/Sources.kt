@@ -36,7 +36,7 @@ import java.time.temporal.ChronoUnit
 
 /** Notion page links. Opening these URLs hands off to the Notion app. */
 object Links {
-    fun n(id: String) = "https://www.notion.so/" + id.replace("-", "")
+    fun n(id: String) = "https://app.notion.com/p/" + id.replace("-", "")
     val DASHBOARD = n("ea4d45cd57594ee7987f9120609c8293")
     val TODAY = n("4134afc9-3b00-814e-b6ca-eb472646712a")
     val LIFE = n("4134afc9-3b00-81d7-8080-e75c4a5c171b")

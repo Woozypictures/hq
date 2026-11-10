@@ -45,6 +45,7 @@ data class Settings(
     val healthHidden: Set<String> = emptySet(),
     val homeOrder: List<String> = HOME_CARDS,
     val homeHidden: Set<String> = emptySet(),
+    val tabOrder: Map<String, List<String>> = emptyMap(),
     val autoRefresh: Boolean = true,
     val intervalMin: Int = 30,
     val refreshOnLaunch: Boolean = true,
@@ -63,6 +64,7 @@ data class Settings(
         put("waterTargetMl", waterTargetMl); put("weighInsPerWeek", weighInsPerWeek)
         put("healthHidden", JSONArray(healthHidden.toList())); put("homeOrder", JSONArray(homeOrder))
         put("homeHidden", JSONArray(homeHidden.toList()))
+        put("tabOrder", JSONObject().also { o -> tabOrder.forEach { (k, v) -> o.put(k, JSONArray(v)) } })
         put("autoRefresh", autoRefresh); put("intervalMin", intervalMin); put("refreshOnLaunch", refreshOnLaunch)
         put("retainData", retainData); put("showErrors", showErrors)
         put("nOverdue", nOverdue); put("nCountdowns", nCountdowns); put("nFailed", nFailed); put("nSources", nSources)
@@ -97,6 +99,7 @@ data class Settings(
                 healthHidden = list("healthHidden")?.filter { it in HEALTH_CARDS }?.toSet() ?: b.healthHidden,
                 homeOrder = order + HOME_CARDS.filter { it !in order },
                 homeHidden = list("homeHidden")?.filter { it in HOME_CARDS }?.toSet() ?: b.homeHidden,
+                tabOrder = o.optJSONObject("tabOrder")?.let { to -> to.keys().asSequence().associateWith { k -> to.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList() } } ?: b.tabOrder,
                 autoRefresh = bool("autoRefresh", b.autoRefresh),
                 intervalMin = int("intervalMin", b.intervalMin, 15, 1440),
                 refreshOnLaunch = bool("refreshOnLaunch", b.refreshOnLaunch),

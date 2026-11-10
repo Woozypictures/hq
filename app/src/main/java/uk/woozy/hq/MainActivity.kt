@@ -235,10 +235,14 @@ class MainActivity : ComponentActivity() {
     /** Opens a link in its own app when installed (Notion, Gmail), otherwise in the browser. */
     private fun open(url: String) {
         if (url.isBlank()) return
-        val uri = Uri.parse(url)
+        var uri = Uri.parse(url)
         val host = uri.host ?: ""
+        // Notion pages: use the canonical share link (page id only), which the app resolves in any workspace
+        if (host.endsWith("notion.so") || host.endsWith("notion.com")) {
+            Regex("[0-9a-fA-F]{32}").findAll((uri.path ?: "").replace("-", "")).lastOrNull()?.let { uri = Uri.parse("https://app.notion.com/p/" + it.value.lowercase()) }
+        }
         val pkg = when {
-            host.endsWith("notion.so") || host.endsWith("notion.site") -> "notion.id"
+            host.endsWith("notion.so") || host.endsWith("notion.com") || host.endsWith("notion.site") -> "notion.id"
             host == "mail.google.com" -> "com.google.android.gm"
             else -> null
         }
@@ -250,7 +254,7 @@ class MainActivity : ComponentActivity() {
             // 2. ask the app directly
             if (tryStart(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg))) return
             // 3. Notion's own scheme
-            if (pkg == "notion.id" && tryStart(Intent(Intent.ACTION_VIEW, Uri.parse("notion://www.notion.so" + (uri.path ?: ""))).setPackage(pkg))) return
+            if (pkg == "notion.id" && tryStart(Intent(Intent.ACTION_VIEW, Uri.parse("notion://www.notion.so" + (uri.path ?: "").removePrefix("/p"))).setPackage(pkg))) return
             // 4. at least open the app
             if (host == "mail.google.com") packageManager.getLaunchIntentForPackage(pkg)?.let { if (tryStart(it)) return }
         }
@@ -355,7 +359,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Draggable(key: String, visible: List<String>, content: @Composable () -> Unit) {
+    private fun Draggable(tab: String, def: List<String>, key: String, visible: List<String>, content: @Composable () -> Unit) {
         val editing = homeEditing
         val dragging = draggingKey == key
         val gap = with(LocalDensity.current) { 20.dp.toPx() }
@@ -381,7 +385,7 @@ class MainActivity : ComponentActivity() {
                     ) { change, drag ->
                         change.consume()
                         dragOffset += drag.y
-                        val vis = cfg.homeOrder.filter { it in visible }
+                        val vis = orderOf(tab, def).filter { it in visible }
                         val i = vis.indexOf(key)
                         val other = when {
                             dragOffset > 0 && i < vis.lastIndex -> vis[i + 1]
@@ -391,10 +395,10 @@ class MainActivity : ComponentActivity() {
                         if (other != null) {
                             val oh = (dragHeights[other] ?: 0) + gap
                             if (kotlin.math.abs(dragOffset) > oh / 2) {
-                                val order = cfg.homeOrder.toMutableList()
+                                val order = orderOf(tab, def).toMutableList()
                                 val a = order.indexOf(key); val b = order.indexOf(other)
                                 order.removeAt(a); order.add(b, key)
-                                update(cfg.copy(homeOrder = order))
+                                setOrder(tab, order)
                                 dragOffset += if (dragOffset > 0) -oh else oh
                             }
                         }
@@ -407,6 +411,24 @@ class MainActivity : ComponentActivity() {
     // ---------- tabs ----------
 
     private fun tasksIn(s: Snapshot, vararg areas: String): List<Task>? = s.tasks?.filter { it.area in areas }
+
+    private fun orderOf(tab: String, def: List<String>): List<String> {
+        val saved = if (tab == "home") cfg.homeOrder else cfg.tabOrder[tab] ?: emptyList()
+        return saved.filter { it in def }.distinct().let { it + def.filter { d -> d !in it } }
+    }
+
+    private fun setOrder(tab: String, order: List<String>) {
+        update(if (tab == "home") cfg.copy(homeOrder = order) else cfg.copy(tabOrder = cfg.tabOrder + (tab to order)))
+    }
+
+    /** Draws a tab's blocks in the saved order; long-press to rearrange on every tab. */
+    @Composable
+    private fun Rearrange(tab: String, def: List<String>, hidden: Set<String> = emptySet(), render: @Composable (String) -> Unit) {
+        val th = LocalTh.current
+        val vis = orderOf(tab, def).filter { it !in hidden }
+        if (homeEditing) T("Drag a card up or down. Tap Done when finished.", 12.sp, th.muted)
+        vis.forEach { k -> androidx.compose.runtime.key(k) { Draggable(tab, def, k, vis) { render(k) } } }
+    }
 
     @Composable
     private fun HomeTab(s: Snapshot, go: (Int) -> Unit) {
@@ -421,22 +443,17 @@ class MainActivity : ComponentActivity() {
                 T("Tap for details", 11.sp, th.muted, caps = true)
             }
         }
-        val visible = cfg.homeOrder.filter { it !in cfg.homeHidden && !(it == "countdowns" && s.countdowns.isNullOrEmpty()) }
-        if (homeEditing) T("Drag a card up or down. Tap Done when finished.", 12.sp, th.muted)
-        visible.forEach { key ->
-            androidx.compose.runtime.key(key) {
-                Draggable(key, visible) {
-                    when (key) {
-                        "tasks" -> Section("Priority tasks", "All tasks", { open(Links.TASKS) }) { TasksPanel(s, s.tasks?.take(5)) }
-                        "steps" -> StepsCard(s) { go(2) }
-                        "sleep" -> SleepCard(s) { go(2) }
-                        "rhr" -> RhrCard(s) { go(2) }
-                        "events" -> Section("Upcoming events", "Open", { openCalendar() }) { EventsPanel(s) }
-                        "countdowns" -> CountdownRow(s)
-                        "feed" -> FeedSection(s)
-                        "weather" -> WeatherCard(s)
-                    }
-                }
+        val hidden = cfg.homeHidden + (if (s.countdowns.isNullOrEmpty()) setOf("countdowns") else emptySet())
+        Rearrange("home", HOME_CARDS, hidden) { key ->
+            when (key) {
+                "tasks" -> Section("Priority tasks", "All tasks", { open(Links.TASKS) }) { TasksPanel(s, s.tasks?.take(5)) }
+                "steps" -> StepsCard(s) { go(2) }
+                "sleep" -> SleepCard(s) { go(2) }
+                "rhr" -> RhrCard(s) { go(2) }
+                "events" -> Section("Upcoming events", "Open", { openCalendar() }) { EventsPanel(s) }
+                "countdowns" -> CountdownRow(s)
+                "feed" -> FeedSection(s)
+                "weather" -> WeatherCard(s)
             }
         }
         NotionLinks("Open in Notion", listOf("Dashboard" to Links.DASHBOARD, "Today" to Links.TODAY, "Life" to Links.LIFE,
@@ -446,17 +463,21 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun LifeTab(s: Snapshot) {
         val tc = LocalTh.current.tab[1]
-        Section("Progress") { Panel { LifeBars(tc) } }
-        Section("Life admin", "Open", { open(Links.LIFE) }) {
-            TasksPanel(s, tasksIn(s, "Flat", "Money", "Life admin"), "Nothing on for flat, money or admin")
+        Rearrange("life", listOf("progress", "admin", "links")) { k ->
+            when (k) {
+                "progress" -> Section("Progress") { Panel { LifeBars(tc) } }
+                "admin" -> Section("Life admin", "Open", { open(Links.LIFE) }) {
+                    TasksPanel(s, tasksIn(s, "Flat", "Money", "Life admin"), "Nothing on for flat, money or admin")
+                }
+                else -> NotionLinks("Open in Notion", Links.LIFE_PAGES + ("L I F E hub" to Links.LIFE), tc)
+            }
         }
-        NotionLinks("Open in Notion", Links.LIFE_PAGES + ("L I F E hub" to Links.LIFE), tc)
     }
 
     @Composable
     private fun HealthTab(s: Snapshot) {
         val tc = LocalTh.current.tab[2]
-        HEALTH_CARDS.filter { it !in cfg.healthHidden }.forEach { key ->
+        Rearrange("health", HEALTH_CARDS + listOf("tasks", "links"), cfg.healthHidden) { key ->
             when (key) {
                 "steps" -> StepsCard(s, null)
                 "sleep" -> SleepCard(s, null)
@@ -465,25 +486,29 @@ class MainActivity : ComponentActivity() {
                 "nutrition" -> NutritionCard(s)
                 "activity" -> ActivityTiles(s)
                 "weekly" -> WeeklyCard(s)
+                "tasks" -> Section("Health tasks") { TasksPanel(s, tasksIn(s, "Health"), "No health tasks") }
+                else -> NotionLinks("Open in Notion", Links.HEALTH_PAGES + ("H E A L T H hub" to Links.HEALTH), tc)
             }
         }
-        Section("Health tasks") { TasksPanel(s, tasksIn(s, "Health"), "No health tasks") }
-        NotionLinks("Open in Notion", Links.HEALTH_PAGES + ("H E A L T H hub" to Links.HEALTH), tc)
     }
 
     @Composable
     private fun CareerTab(s: Snapshot) {
         val tc = LocalTh.current.tab[3]
-        Section("CIMA") {
-            val cima = s.countdowns?.filter { it.name.contains("CIMA", true) || it.name.contains("E2", true) }
-            if (cima.isNullOrEmpty()) Panel { Muted("No CIMA date in Countdowns yet") }
-            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                cima.take(2).forEach { c -> Tile(c.name, c.days.toString(), "days to go", tc, Modifier.weight(1f)) { open(Links.CAREER_PAGES[0].second) } }
-                if (cima.size == 1) Spacer(Modifier.weight(1f))
+        Rearrange("career", listOf("cima", "study", "links")) { k ->
+            when (k) {
+                "cima" -> Section("CIMA") {
+                    val cima = s.countdowns?.filter { it.name.contains("CIMA", true) || it.name.contains("E2", true) }
+                    if (cima.isNullOrEmpty()) Panel { Muted("No CIMA date in Countdowns yet") }
+                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        cima.take(2).forEach { c -> Tile(c.name, c.days.toString(), "days to go", tc, Modifier.weight(1f)) { open(Links.CAREER_PAGES[0].second) } }
+                        if (cima.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+                "study" -> Section("Study and work") { TasksPanel(s, tasksIn(s, "CIMA", "Work"), "No CIMA or work tasks") }
+                else -> NotionLinks("Open in Notion", Links.CAREER_PAGES + ("C A R E E R hub" to Links.CAREER), tc)
             }
         }
-        Section("Study and work") { TasksPanel(s, tasksIn(s, "CIMA", "Work"), "No CIMA or work tasks") }
-        NotionLinks("Open in Notion", Links.CAREER_PAGES + ("C A R E E R hub" to Links.CAREER), tc)
     }
 
     @Composable
@@ -494,24 +519,28 @@ class MainActivity : ComponentActivity() {
         val f = s.feed
         val yt = f?.optJSONObject("youtube")
         val ig = f?.optJSONObject("instagram")
-        Section("YouTube" + (yt?.optString("channel")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
-            if (yt == null) Panel { Muted("Stats arrive with the morning refresh") }
-            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Tile("Subscribers", nf.format(yt.optLong("subs")), if (yt.optLong("subs30") != 0L) "${yt.optLong("subs30")} in 30d" else null, tc, Modifier.weight(1f))
-                Tile("Views", nf.format(yt.optLong("views")), "+${nf.format(yt.optLong("views30"))} in 30d", tc, Modifier.weight(1f))
-                Tile("Videos", nf.format(yt.optLong("videos")), null, tc, Modifier.weight(1f))
+        Rearrange("create", listOf("youtube", "instagram", "content", "links")) { k ->
+            when (k) {
+                "youtube" -> Section("YouTube" + (yt?.optString("channel")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
+                    if (yt == null) Panel { Muted("Stats arrive with the morning refresh") }
+                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Tile("Subscribers", nf.format(yt.optLong("subs")), if (yt.optLong("subs30") != 0L) "${yt.optLong("subs30")} in 30d" else null, tc, Modifier.weight(1f))
+                        Tile("Views", nf.format(yt.optLong("views")), "+${nf.format(yt.optLong("views30"))} in 30d", tc, Modifier.weight(1f))
+                        Tile("Videos", nf.format(yt.optLong("videos")), null, tc, Modifier.weight(1f))
+                    }
+                }
+                "instagram" -> Section("Instagram" + (ig?.optString("handle")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
+                    if (ig == null) Panel { Muted("Instagram isn't connected to vidIQ yet") }
+                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Tile("Followers", nf.format(ig.optLong("followers")), null, tc, Modifier.weight(1f))
+                        Tile("Reach", if (ig.has("reach30")) nf.format(ig.optLong("reach30")) else "-", "30 days", tc, Modifier.weight(1f))
+                        Tile("Posts", if (ig.has("posts")) nf.format(ig.optLong("posts")) else "-", null, tc, Modifier.weight(1f))
+                    }
+                }
+                "content" -> Section("Content and music") { TasksPanel(s, tasksIn(s, "Content", "Music"), "No content tasks") }
+                else -> NotionLinks("Open in Notion", Links.CREATE_PAGES + ("C R E A T E hub" to Links.CREATE), tc)
             }
         }
-        Section("Instagram" + (ig?.optString("handle")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
-            if (ig == null) Panel { Muted("Instagram isn't connected to vidIQ yet") }
-            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Tile("Followers", nf.format(ig.optLong("followers")), null, tc, Modifier.weight(1f))
-                Tile("Reach", if (ig.has("reach30")) nf.format(ig.optLong("reach30")) else "-", "30 days", tc, Modifier.weight(1f))
-                Tile("Posts", if (ig.has("posts")) nf.format(ig.optLong("posts")) else "-", null, tc, Modifier.weight(1f))
-            }
-        }
-        Section("Content and music") { TasksPanel(s, tasksIn(s, "Content", "Music"), "No content tasks") }
-        NotionLinks("Open in Notion", Links.CREATE_PAGES + ("C R E A T E hub" to Links.CREATE), tc)
     }
 
     // ---------- home cards ----------
