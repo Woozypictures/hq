@@ -123,7 +123,7 @@ private val FROSTED = Th(
 private val LocalTh = staticCompositionLocalOf { HQ }
 private val Faint = Color(0x66FFFFFF)
 
-private val TAB_NAMES = listOf("Today", "Life", "Health", "Career", "Create")
+private val TAB_NAMES = listOf("Home", "Life", "Health", "Career", "Create")
 
 class MainActivity : ComponentActivity() {
     private var snap by mutableStateOf(Snapshot())
@@ -192,8 +192,16 @@ class MainActivity : ComponentActivity() {
         } else refresh()
     }
 
+    /** Notion pages open in the Notion app through its own notion:// scheme; anything else (or no app) falls back to the browser. */
     private fun open(url: String) {
         if (url.isBlank()) return
+        if (url.contains("notion.so")) {
+            try {
+                val deep = Uri.parse("notion://" + url.substringAfter("://").removePrefix("www.").let { "www.$it" })
+                startActivity(Intent(Intent.ACTION_VIEW, deep).setPackage("notion.id"))
+                return
+            } catch (_: Exception) { }
+        }
         try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) { }
     }
 
@@ -256,7 +264,7 @@ class MainActivity : ComponentActivity() {
                 }
                 T(line, 11.sp, th.muted, caps = true)
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Pill(if (loading) "Refreshing" else "Refresh") { refresh() }
                 Pill("Settings") { showSettings = true }
             }
