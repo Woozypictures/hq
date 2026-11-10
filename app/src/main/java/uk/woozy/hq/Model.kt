@@ -34,6 +34,8 @@ object Store {
     fun setDob(c: Context, d: String) = prefs(c).edit().putString("dob", d.trim()).apply()
     fun stepGoal(c: Context): Int = prefs(c).getInt("stepGoal", 8500)
     fun setStepGoal(c: Context, g: Int) = prefs(c).edit().putInt("stepGoal", g).apply()
+    fun theme(c: Context): String = prefs(c).getString("theme", "hq") ?: "hq"
+    fun setTheme(c: Context, t: String) = prefs(c).edit().putString("theme", t).apply()
     fun asked(c: Context): Boolean = prefs(c).getBoolean("asked", false)
     fun setAsked(c: Context) = prefs(c).edit().putBoolean("asked", true).apply()
 

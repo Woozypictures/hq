@@ -37,7 +37,7 @@ val LONDON: ZoneId = ZoneId.of("Europe/London")
 
 /** Notion page links. Opening these URLs hands off to the Notion app. */
 object Links {
-    private fun n(id: String) = "https://www.notion.so/" + id.replace("-", "")
+    fun n(id: String) = "https://www.notion.so/" + id.replace("-", "")
     val DASHBOARD = n("ea4d45cd57594ee7987f9120609c8293")
     val TODAY = n("4134afc9-3b00-814e-b6ca-eb472646712a")
     val LIFE = n("4134afc9-3b00-81d7-8080-e75c4a5c171b")
@@ -45,6 +45,23 @@ object Links {
     val CAREER = n("4134afc9-3b00-8186-b7a4-e51c931d8447")
     val CREATE = n("4134afc9-3b00-81b6-849a-e0d8bf7d4f6c")
     val TASKS = n("89e4f6a36ea9414ca8b4684774ec4284")
+
+    val LIFE_PAGES = listOf("Apartment" to n("31d4afc93b0080d09181e30de2acf638"), "Finances" to n("a2c45a544a724dd69cdafdf8eb48697d"),
+        "Travel" to n("99e37ebcb21a4a55a229d5e2e7e74bfc"), "Healthcare" to n("3bd6e2d57eb545d3ab6d821b2d5d1bbd"),
+        "Notes" to n("8d4d76b6f1074cfc9f41290fda56c842"))
+    val HEALTH_PAGES = listOf("Fitness" to n("835ca4fa122e41ef9956d58451935cb1"), "Habits" to n("7ce78dd4e707420c846c9be153232c34"))
+    val CAREER_PAGES = listOf("CIMA" to n("697d8747766a419c83a05a500c5d2dbf"), "Portfolios" to n("926465794aad4a5197de71eb21e5f8f8"),
+        "Goals" to n("8e5b030f904e4b8ab1cda6d8974719cf"), "Be Greater" to n("d06bec76307649c287d8db606ea4f487"))
+    val CREATE_PAGES = listOf("Content" to n("e5fc16e75b32433d995b3c9524d84c3c"), "Music" to n("7fecbd7641b04a1493871bfd467b73a4"),
+        "Moodboard" to n("a715bad2ea2349fda7b72b7368f66726"), "Reading" to n("abb746c59e624c53adc15daeea7ebefe"))
+}
+
+fun friendly(m: String): String = when {
+    "HTTP 401" in m -> "Notion rejected the token. Re-copy it from your HQ connection and paste it in Settings."
+    "HTTP 404" in m || "object_not_found" in m -> "Notion can't see that page. On T O D A Y (and each hub) open the ... menu > Connections > add HQ."
+    "HTTP 403" in m -> "HQ's Notion connection doesn't have permission for that page."
+    "UnknownHost" in m || "Unable to resolve" in m -> "No internet."
+    else -> m
 }
 
 private fun http(url: String, method: String = "GET", headers: Map<String, String> = emptyMap(), body: String? = null): String {
@@ -102,9 +119,7 @@ object NotionSrc {
     }
 
     fun tasks(token: String): List<Task> {
-        val r = call(token, "POST", "data_sources/$TASKS_DS/query", JSONObject()
-            .put("page_size", 100)
-            .put("sorts", JSONArray().put(JSONObject().put("property", "Score").put("direction", "descending"))))
+        val r = call(token, "POST", "data_sources/$TASKS_DS/query", JSONObject().put("page_size", 100))
         val res = r.getJSONArray("results")
         return (0 until res.length()).map { res.getJSONObject(it) }.mapNotNull { p ->
             val lane = prop(p, "Lane")
@@ -112,7 +127,7 @@ object NotionSrc {
             if (status == "Done" || lane == "Done" || lane == "Park") return@mapNotNull null
             Task(prop(p, "Task"), prop(p, "Area"), lane, prop(p, "Score").toDoubleOrNull() ?: 0.0,
                 prop(p, "Due"), p.optString("url"))
-        }.sortedWith(compareBy<Task> { if (it.lane == "Do now") 0 else 1 }.thenByDescending { it.score }).take(8)
+        }.sortedWith(compareBy<Task> { if (it.lane == "Do now") 0 else 1 }.thenByDescending { it.score })
     }
 
     fun countdowns(token: String): List<Countdown> {
@@ -265,7 +280,7 @@ object Repo {
         val token = Store.token(c)
         val errors = mutableListOf<String>()
         fun <T> ok(name: String, r: Result<T>, prev: T?): T? =
-            r.getOrElse { errors += "$name: ${it.message ?: it.javaClass.simpleName}".take(140); prev }
+            r.getOrElse { errors += "$name: ${friendly(it.message ?: it.javaClass.simpleName)}".take(200); prev }
 
         coroutineScope {
             val tasks = async { runCatching { if (token.isEmpty()) error("add Notion token in settings") else NotionSrc.tasks(token) } }
