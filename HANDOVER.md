@@ -88,3 +88,15 @@ Notion IDs used by the app (all in `Sources.kt`, object `Links`, `NotionSrc`):
 - Reliability: WorkManager 30-minute refresh versus Samsung battery restrictions (the app may need "Unrestricted" battery).
 - Maintainability: hard-coded Notion IDs in `Links`; consider reading hub children from the API instead.
 - Cost/usage: the morning task runs on a Claude model and several connectors every day; confirm it fits the plan's usage.
+
+## 9. v0.4 changes (ChatGPT audit spec)
+- Settings screen (full page, accordion): General, Health targets, Home cards, Refresh, Notifications, Connections, Advanced. Stored in separate prefs file `hq_settings` (JSON); theme and step goal migrated from old prefs once, old values untouched.
+- Defaults: theme HQ, Celsius, km, kg, GBP, DD/MM/YYYY, Europe/London, week Monday, 24h; steps 10,000, sleep 8h; calories/protein/fibre/water/weigh-ins unset (shown without a target); auto refresh on, 30 min, refresh on launch on, keep last data on, show errors on; all notifications off.
+- Home cards (order and visibility configurable): Priority tasks, Steps, Sleep, Resting HR, Upcoming events, Countdowns, HQ Feed, Weather. Problems banner appears when a source fails.
+- Health tab: steps, sleep, RHR, weight, nutrition (calories, protein, fibre), calories burned, weekly overview (7/30 days, "n of N days" notes, missing days never counted as zero). Each card shows recorded time and last Health Connect read.
+- Health Connect aggregation logic unchanged. Extra reads (protein, fibre, history) live in HealthExtra.kt.
+- Diagnostics: per-source last attempt/success/status/error in Status.kt; failure keeps cached data. Shown in Settings > Advanced.
+- Notifications: optional, once per day each, POST_NOTIFICATIONS requested only when one is switched on.
+- Font: Google Sans (SIL OFL 1.1, from @fontsource/google-sans 5.3.2) bundled for both themes; licence in assets/licenses. Hanken Grotesk removed. Widget still uses Product Sans from the owner's KWGT pack (proprietary, private repo, personal use); decide whether to switch it.
+- Not done: water reading, charts, drag reorder (up/down used), distance/currency are saved but unused, 06:43 is the Claude scheduled task not an app timer.
+- Build: GitHub Actions run 5 succeeded. Not tested on a device.
