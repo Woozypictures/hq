@@ -15,7 +15,28 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.matchParentSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.zIndex
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -91,6 +112,7 @@ class MainActivity : ComponentActivity() {
     private var settingsOpen by mutableStateOf(false)
     private var settingsStart by mutableStateOf("")
     private var tokenSaved by mutableStateOf(false)
+    private var homeEditing by mutableStateOf(false)
 
     private val calPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { askHealth() }
     private val healthPerm = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { refresh(true) }
@@ -105,7 +127,7 @@ class MainActivity : ComponentActivity() {
         tokenSaved = Store.token(this).isNotEmpty()
         RefreshWorker.ensure(this)
         setContent {
-            val th = if (cfg.theme == "frosted") FROSTED else HQ
+            val th = themeFor(cfg.theme)
             val view = LocalView.current
             SideEffect {
                 val c = WindowCompat.getInsetsController(window, view)
@@ -211,16 +233,29 @@ class MainActivity : ComponentActivity() {
         licenseText = { try { assets.open("licenses/GoogleSans-OFL.txt").bufferedReader().use { it.readText() } } catch (_: Exception) { "Licence file missing" } },
     )
 
+    /** Opens a link in its own app when installed (Notion, Gmail), otherwise in the browser. */
     private fun open(url: String) {
         if (url.isBlank()) return
-        if (url.contains("notion.so")) {
-            try {
-                val deep = Uri.parse("notion://" + url.substringAfter("://").removePrefix("www.").let { "www.$it" })
-                startActivity(Intent(Intent.ACTION_VIEW, deep).setPackage("notion.id"))
-                return
-            } catch (_: Exception) { }
+        val uri = Uri.parse(url)
+        val host = uri.host ?: ""
+        val pkg = when {
+            host.endsWith("notion.so") || host.endsWith("notion.site") -> "notion.id"
+            host == "mail.google.com" -> "com.google.android.gm"
+            else -> null
         }
-        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) { }
+        fun tryStart(i: Intent): Boolean = try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        if (pkg != null) {
+            // 1. let Android pick the app that owns the link (never the browser)
+            if (Build.VERSION.SDK_INT >= 30 &&
+                tryStart(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER))) return
+            // 2. ask the app directly
+            if (tryStart(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg))) return
+            // 3. Notion's own scheme
+            if (pkg == "notion.id" && tryStart(Intent(Intent.ACTION_VIEW, Uri.parse("notion://www.notion.so" + (uri.path ?: ""))).setPackage(pkg))) return
+            // 4. at least open the app
+            if (host == "mail.google.com") packageManager.getLaunchIntentForPackage(pkg)?.let { if (tryStart(it)) return }
+        }
+        tryStart(Intent(Intent.ACTION_VIEW, uri))
     }
 
     private fun openEvent(id: Long) {
@@ -244,8 +279,10 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
             Header(s)
             Tabs(tab) { tab = it }
+            @OptIn(ExperimentalMaterial3Api::class)
+            PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).navigationBarsPadding()
+                Modifier.fillMaxSize().verticalScroll(scroll, enabled = !homeEditing).navigationBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -256,6 +293,7 @@ class MainActivity : ComponentActivity() {
                     3 -> CareerTab(s)
                     else -> CreateTab(s)
                 }
+            }
             }
         }
     }
@@ -268,11 +306,10 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.weight(1f)) {
                 T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
                 T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), 32.sp, th.fg, weight = FontWeight.Bold, caps = true)
-                T(if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "Not refreshed yet", 11.sp, th.muted, caps = true)
+                T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) + " · pull down to refresh" else "Pull down to refresh", 11.sp, th.muted, caps = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill(if (loading) "Refreshing" else "Refresh") { refresh(true) }
-                Pill("Settings") { openSettings() }
+                if (homeEditing) Pill("Done") { homeEditing = false } else Pill("Settings") { openSettings() }
             }
         }
     }
@@ -295,6 +332,79 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ---------- rearranging ----------
+
+    private val dragHeights = mutableStateMapOf<String, Int>()
+    private var draggingKey by mutableStateOf<String?>(null)
+    private var dragOffset by mutableStateOf(0f)
+
+    /** Long press anywhere on a card (even over its buttons) to start rearranging. */
+    private fun Modifier.onLongPress(onLong: () -> Unit): Modifier = pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val r = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                var result = true
+                while (true) {
+                    val e = awaitPointerEvent(PointerEventPass.Initial)
+                    if (e.changes.all { !it.pressed }) break
+                    if (e.changes.any { (it.position - down.position).getDistance() > viewConfiguration.touchSlop }) { result = false; break }
+                }
+                result
+            }
+            if (r == null) onLong()
+        }
+    }
+
+    @Composable
+    private fun Draggable(key: String, visible: List<String>, content: @Composable () -> Unit) {
+        val editing = homeEditing
+        val dragging = draggingKey == key
+        val gap = with(LocalDensity.current) { 20.dp.toPx() }
+        val wiggle = rememberInfiniteTransition(label = "wiggle")
+        val phase = (key.hashCode() and 3) * 40
+        val angle by wiggle.animateFloat(-0.9f, 0.9f, infiniteRepeatable(tween(130 + phase, easing = LinearEasing), RepeatMode.Reverse), label = "a")
+        Box(
+            Modifier.onSizeChanged { dragHeights[key] = it.height }
+                .graphicsLayer {
+                    if (editing && !dragging) rotationZ = angle
+                    if (dragging) { translationY = dragOffset; scaleX = 1.03f; scaleY = 1.03f; shadowElevation = 24f }
+                }
+                .zIndex(if (dragging) 1f else 0f)
+                .then(if (!editing) Modifier.onLongPress { homeEditing = true } else Modifier),
+        ) {
+            content()
+            if (editing) Box(
+                Modifier.matchParentSize().pointerInput(key) {
+                    detectDragGestures(
+                        onDragStart = { draggingKey = key; dragOffset = 0f },
+                        onDragEnd = { draggingKey = null; dragOffset = 0f },
+                        onDragCancel = { draggingKey = null; dragOffset = 0f },
+                    ) { change, drag ->
+                        change.consume()
+                        dragOffset += drag.y
+                        val vis = cfg.homeOrder.filter { it in visible }
+                        val i = vis.indexOf(key)
+                        val other = when {
+                            dragOffset > 0 && i < vis.lastIndex -> vis[i + 1]
+                            dragOffset < 0 && i > 0 -> vis[i - 1]
+                            else -> null
+                        }
+                        if (other != null) {
+                            val oh = (dragHeights[other] ?: 0) + gap
+                            if (kotlin.math.abs(dragOffset) > oh / 2) {
+                                val order = cfg.homeOrder.toMutableList()
+                                val a = order.indexOf(key); val b = order.indexOf(other)
+                                order.removeAt(a); order.add(b, key)
+                                update(cfg.copy(homeOrder = order))
+                                dragOffset += if (dragOffset > 0) -oh else oh
+                            }
+                        }
+                    }
+                },
+            )
+        }
+    }
+
     // ---------- tabs ----------
 
     private fun tasksIn(s: Snapshot, vararg areas: String): List<Task>? = s.tasks?.filter { it.area in areas }
@@ -312,16 +422,22 @@ class MainActivity : ComponentActivity() {
                 T("Tap for details", 11.sp, th.muted, caps = true)
             }
         }
-        cfg.homeOrder.filter { it !in cfg.homeHidden }.forEach { key ->
-            when (key) {
-                "tasks" -> Section("Priority tasks", "All tasks", { open(Links.TASKS) }) { TasksPanel(s, s.tasks?.take(5)) }
-                "steps" -> StepsCard(s) { go(2) }
-                "sleep" -> SleepCard(s) { go(2) }
-                "rhr" -> RhrCard(s) { go(2) }
-                "events" -> Section("Upcoming events", "Open", { openCalendar() }) { EventsPanel(s) }
-                "countdowns" -> CountdownRow(s)
-                "feed" -> FeedSection(s)
-                "weather" -> WeatherCard(s)
+        val visible = cfg.homeOrder.filter { it !in cfg.homeHidden && !(it == "countdowns" && s.countdowns.isNullOrEmpty()) }
+        if (homeEditing) T("Drag a card up or down. Tap Done when finished.", 12.sp, th.muted)
+        visible.forEach { key ->
+            androidx.compose.runtime.key(key) {
+                Draggable(key, visible) {
+                    when (key) {
+                        "tasks" -> Section("Priority tasks", "All tasks", { open(Links.TASKS) }) { TasksPanel(s, s.tasks?.take(5)) }
+                        "steps" -> StepsCard(s) { go(2) }
+                        "sleep" -> SleepCard(s) { go(2) }
+                        "rhr" -> RhrCard(s) { go(2) }
+                        "events" -> Section("Upcoming events", "Open", { openCalendar() }) { EventsPanel(s) }
+                        "countdowns" -> CountdownRow(s)
+                        "feed" -> FeedSection(s)
+                        "weather" -> WeatherCard(s)
+                    }
+                }
             }
         }
         NotionLinks("Open in Notion", listOf("Dashboard" to Links.DASHBOARD, "Today" to Links.TODAY, "Life" to Links.LIFE,

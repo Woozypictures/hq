@@ -16,6 +16,7 @@
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
         <package android:name="notion.id" />
+        <package android:name="com.google.android.gm" />
     </queries>
 
     <application

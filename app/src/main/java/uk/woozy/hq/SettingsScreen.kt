@@ -161,7 +161,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Section("general", "General") {
-                Opts("Theme", listOf("hq" to "HQ", "frosted" to "Frosted"), s.theme) { onChange(s.copy(theme = it)) }
+                Opts("Theme", THEME_NAMES, s.theme) { onChange(s.copy(theme = it)) }
                 Opts("Temperature", listOf("C" to "Celsius", "F" to "Fahrenheit"), s.tempUnit) { onChange(s.copy(tempUnit = it)) }
                 Opts("Weight", listOf("kg" to "kg", "lb" to "lb", "st" to "st + lb"), s.weightUnit) { onChange(s.copy(weightUnit = it)) }
                 Opts("Distance (saved for later)", listOf("km" to "km", "mi" to "miles"), s.distanceUnit) { onChange(s.copy(distanceUnit = it)) }

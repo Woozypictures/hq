@@ -21,6 +21,7 @@ val HEALTH_NAMES = mapOf(
     "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate", "weight" to "Weight",
     "nutrition" to "Nutrition", "activity" to "Calories burned", "weekly" to "Weekly overview",
 )
+val THEME_IDS = setOf("hq", "frosted", "colourful", "standard", "calm", "seventies", "japandi", "riviera", "editorial", "notebook", "riso", "solarpunk", "bauhaus", "chrome", "digital", "noir", "athletic", "arcade")
 val INTERVALS = listOf(15, 30, 60, 120, 240, 360)
 
 /** Every user preference lives here. Targets of 0 mean "not set". */
@@ -77,7 +78,7 @@ data class Settings(
             val order = list("homeOrder")?.filter { it in HOME_CARDS }?.distinct() ?: b.homeOrder
             val tz = if (o.has("timezone")) o.optString("timezone") else b.timezone
             return Settings(
-                theme = str("theme", setOf("hq", "frosted"), b.theme),
+                theme = str("theme", THEME_IDS, b.theme),
                 tempUnit = str("tempUnit", setOf("C", "F"), b.tempUnit),
                 distanceUnit = str("distanceUnit", setOf("km", "mi"), b.distanceUnit),
                 weightUnit = str("weightUnit", setOf("kg", "lb", "st"), b.weightUnit),
@@ -118,7 +119,7 @@ object SettingsStore {
         // First run of this version: copy theme and step goal from the old store. The old values are left untouched.
         val old = c.getSharedPreferences("hq", Context.MODE_PRIVATE)
         var s = Settings()
-        if (old.contains("theme")) s = s.copy(theme = old.getString("theme", "hq")?.takeIf { it == "hq" || it == "frosted" } ?: "hq")
+        if (old.contains("theme")) s = s.copy(theme = old.getString("theme", "hq")?.takeIf { it in THEME_IDS } ?: "hq")
         if (old.contains("stepGoal")) s = s.copy(stepsTarget = old.getInt("stepGoal", 10000).coerceIn(0, 100000))
         save(c, s)
         return s

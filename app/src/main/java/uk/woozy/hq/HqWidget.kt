@@ -60,10 +60,13 @@ class HqWidget : AppWidgetProvider() {
         }
 
         const val TXT = 0xFFFFFFFF.toInt()
-        const val TXT2 = 0x8CFFFFFF.toInt()
-        const val TXT3 = 0x66FFFFFF
+        const val TXT2 = 0xCCFFFFFF.toInt()
+        const val TXT3 = 0x99FFFFFF.toInt()
         const val CAP = 0x66303030
         const val BAR = 0x40FFFFFF
+
+        /** Removes emoji and other symbols the widget font can't draw. */
+        private fun clean(t: String) = t.filter { it.isLetterOrDigit() || it.isWhitespace() || it in ".,:;!?'\"()&/+-%·@#£$°" }.replace(Regex("\\s+"), " ").trim()
 
         fun draw(c: Context, s: Snapshot, wDp: Int, hDp: Int): Bitmap {
             val d = c.resources.displayMetrics.density.coerceAtMost(3f)
@@ -72,17 +75,18 @@ class HqWidget : AppWidgetProvider() {
             val cv = Canvas(bmp)
             val font: Typeface = try { c.resources.getFont(R.font.productsans) } catch (e: Exception) { Typeface.DEFAULT }
 
-            // glass card
+            // glass card: faint dark underlay so white text stays readable on light wallpapers, then the frosted gradient and rim
             val inset = 1.2f * d
             val rect = RectF(inset, inset, w - inset, h - inset)
-            val radius = minOf(30f * d, h / 2.6f)
+            val radius = minOf(28f * d, h / 2.4f)
+            cv.drawRoundRect(rect, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x26000000 })
             val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = LinearGradient(0f, 0f, w.toFloat(), 0f, 0x0EFFFFFF, 0x37FFFFFF, Shader.TileMode.CLAMP)
+                shader = LinearGradient(0f, 0f, w.toFloat(), 0f, 0x14FFFFFF, 0x3DFFFFFF, Shader.TileMode.CLAMP)
             }
             cv.drawRoundRect(rect, radius, radius, fill)
             val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE; strokeWidth = 1.1f * d
-                shader = LinearGradient(0f, 0f, w.toFloat(), 0f, 0x3AFFFFFF, 0x60FFFFFF, Shader.TileMode.CLAMP)
+                shader = LinearGradient(0f, 0f, w.toFloat(), 0f, 0x4DFFFFFF, 0x73FFFFFF, Shader.TileMode.CLAMP)
             }
             cv.drawRoundRect(rect, radius, radius, rim)
 
@@ -95,47 +99,57 @@ class HqWidget : AppWidgetProvider() {
                 cv.drawText(s2, xx, baseline, p)
             }
 
-            val padX = maxOf(radius * 0.62f, 16f * d)
+            val padX = maxOf(radius * 0.7f, 18f * d)
             val left = padX; val right = w - padX; val inner = right - left
-            val compact = hDp < 96
+            val compact = hDp < 90
 
             val label = tp(11f, TXT2)
-            val big = tp(if (compact) 15f else 17f, TXT)
-            val small = tp(11f, TXT3)
+            val big = tp(if (compact) 16f else 18f, TXT)
+            val small = tp(11.5f, TXT3)
 
-            // line 1: date + weather | next countdown
+            val goal = Store.stepGoal(c)
+            val steps = s.health?.steps
+            val nfmt = NumberFormat.getIntegerInstance(Locale.UK)
+            val stepsTxt = steps?.let { "${nfmt.format(it)} / ${nfmt.format(goal)} steps" } ?: ""
+
+            // vertical rhythm: measure the block then centre it
+            val gap1 = (if (compact) 5f else 7f) * d
+            val gap2 = 5f * d
+            val gap3 = (if (compact) 7f else 9f) * d
+            val barH = (if (compact) 6f else 8f) * d
+            val lineH = label.textSize
+            var total = lineH + gap1 + big.textSize + gap3 + barH
+            if (!compact) total += gap2 + small.textSize
+            var y = ((h - total) / 2f).coerceAtLeast(inset + 6 * d) + lineH
+
+            // line 1: date and weather | next countdown
             val date = LocalDate.now(Cfg.zone).format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK))
             val wx = s.weather?.let { " · ${Fmt.temp(it.temp)} ${WeatherSrc.label(it.code)}" } ?: ""
-            val cd = s.countdowns?.firstOrNull()?.let { "${it.name} ${it.days}d" } ?: ""
-            val cdW = if (cd.isEmpty()) 0f else minOf(label.measureText(cd.uppercase()), inner * 0.45f)
-            var y = (if (compact) 12f else 16f) * d + label.textSize
-            text((date + wx).uppercase(), left, y, label, inner - cdW - 8 * d)
-            if (cd.isNotEmpty()) text(cd.uppercase(), right, y, label, cdW, right = true)
+            val cd = s.countdowns?.firstOrNull()?.let { "${clean(it.name)} ${it.days}d" } ?: ""
+            val cdW = if (cd.isEmpty()) 0f else minOf(label.measureText(cd), inner * 0.42f)
+            text(date + wx, left, y, label, inner - cdW - 10 * d)
+            if (cd.isNotEmpty()) text(cd, right, y, label, cdW, right = true)
 
             // line 2: top task
-            y += (if (compact) 5f else 8f) * d + big.textSize
-            val top = s.tasks?.firstOrNull()?.title?.uppercase()
-                ?: if (Store.token(c).isEmpty()) "OPEN HQ TO SET UP" else "NOTHING IN DO NOW"
+            y += gap1 + big.textSize
+            val top = s.tasks?.firstOrNull()?.title?.let { clean(it) }?.takeIf { it.isNotEmpty() }
+                ?: if (Store.token(c).isEmpty()) "Open HQ to set up" else "Nothing in Do now"
             text(top, left, y, big, inner)
 
             // line 3: next event | steps
-            val goal = Store.stepGoal(c)
-            val steps = s.health?.steps
-            val stepsTxt = steps?.let { "${NumberFormat.getIntegerInstance(Locale.UK).format(it)} / $goal STEPS" } ?: ""
             if (!compact) {
-                y += 6f * d + small.textSize
-                val ev = nextEvent(s)?.uppercase() ?: ""
+                y += gap2 + small.textSize
+                val ev = nextEvent(s)?.let { clean(it) } ?: ""
                 val sW = small.measureText(stepsTxt)
-                text(ev, left, y, small, inner - sW - 10 * d)
+                text(ev, left, y, small, inner - sW - 12 * d)
                 text(stepsTxt, right, y, small, sW + 1, right = true)
             }
 
             // bar: 30 squares, first is the dark cap, filled by steps / goal
-            val barH = (if (compact) 7f else 9f) * d
-            val barTop = minOf(y + 9f * d, h - inset - barH - (if (compact) 10f else 14f) * d)
+            val barTop = y + gap3
             val n = 30
             val slot = inner / n
-            val seg = slot * 0.5f
+            val seg = slot * 0.6f
             val pct = ((steps ?: 0L).toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f)
             val filled = (pct * (n - 1)).toInt()
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -146,7 +160,7 @@ class HqWidget : AppWidgetProvider() {
                     else -> BAR
                 }
                 val x = left + i * slot
-                cv.drawRect(x, barTop, x + seg, barTop + barH, p)
+                cv.drawRoundRect(x, barTop, x + seg, barTop + barH, seg * 0.25f, seg * 0.25f, p)
             }
             return bmp
         }
@@ -163,7 +177,7 @@ class HqWidget : AppWidgetProvider() {
                 today.plusDays(1) -> "Tmrw "
                 else -> t.format(DateTimeFormatter.ofPattern("EEE ", Locale.UK))
             }
-            return "Next: $day${Fmt.time(t)} ${e.title}"
+            return "Next $day${Fmt.time(t)}  ${e.title}"
         }
     }
 }
