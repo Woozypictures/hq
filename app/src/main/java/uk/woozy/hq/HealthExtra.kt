@@ -86,9 +86,9 @@ object HealthExtraSrc {
         var protein: Double? = null
         var fibre: Double? = null
         if (has(g, NutritionRecord::class)) {
-            val a = hc.aggregate(AggregateRequest(setOf(NutritionRecord.PROTEIN_TOTAL, NutritionRecord.FIBER_TOTAL), TimeRangeFilter.between(dayStart, now)))
+            val a = hc.aggregate(AggregateRequest(setOf(NutritionRecord.PROTEIN_TOTAL, NutritionRecord.DIETARY_FIBER_TOTAL), TimeRangeFilter.between(dayStart, now)))
             protein = a[NutritionRecord.PROTEIN_TOTAL]?.inGrams
-            fibre = a[NutritionRecord.FIBER_TOTAL]?.inGrams
+            fibre = a[NutritionRecord.DIETARY_FIBER_TOTAL]?.inGrams
         }
         suspend fun <T : Record> latest(k: KClass<T>, days: Long): T? =
             if (!has(g, k)) null else hc.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(now.minus(Duration.ofDays(days)), now),
