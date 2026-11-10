@@ -33,7 +33,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
-val LONDON: ZoneId = ZoneId.of("Europe/London")
 
 /** Notion page links. Opening these URLs hands off to the Notion app. */
 object Links {
@@ -135,7 +134,7 @@ object NotionSrc {
             .put("filter", JSONObject().put("property", "Show on Today").put("checkbox", JSONObject().put("equals", true)))
             .put("sorts", JSONArray().put(JSONObject().put("property", "Date").put("direction", "ascending"))))
         val res = r.getJSONArray("results")
-        val today = LocalDate.now(LONDON)
+        val today = LocalDate.now(Cfg.zone)
         return (0 until res.length()).map { res.getJSONObject(it) }.mapNotNull { p ->
             val d = prop(p, "Date").take(10)
             if (d.length < 10) return@mapNotNull null
@@ -274,35 +273,53 @@ object HealthSrc {
 }
 
 object Repo {
-    /** Pulls every source in parallel. A failed source keeps its last good value and adds a short error. */
-    suspend fun refresh(c: Context): Snapshot = withContext(Dispatchers.IO) {
+    /** Pulls every source in parallel. A failed source keeps its last good value (if retaining is on) and is logged. */
+    suspend fun refresh(c: Context, manual: Boolean = false): Snapshot = withContext(Dispatchers.IO) {
+        val cfg = Cfg.get(c)
         val old = Store.load(c)
         val token = Store.token(c)
         val errors = mutableListOf<String>()
-        fun <T> ok(name: String, r: Result<T>, prev: T?): T? =
-            r.getOrElse { errors += "$name: ${friendly(it.message ?: it.javaClass.simpleName)}".take(200); prev }
+        var failed = 0
+
+        fun <T> track(name: String, r: Result<T>, prev: T?): T? {
+            val kept = if (cfg.retainData) prev else null
+            return r.fold({ v -> Diag.record(c, name, null, false); v }, { e ->
+                val m = friendly(e.message ?: e.javaClass.simpleName).take(200)
+                Diag.record(c, name, m, kept != null)
+                errors += "$name: $m"; failed++
+                kept
+            })
+        }
+        val needsToken = "Add the Notion token in Settings > Connections"
 
         coroutineScope {
-            val tasks = async { runCatching { if (token.isEmpty()) error("add Notion token in settings") else NotionSrc.tasks(token) } }
-            val cds = async { runCatching { if (token.isEmpty()) error("no token") else NotionSrc.countdowns(token) } }
-            val feed = async { runCatching { if (token.isEmpty()) error("no token") else NotionSrc.feed(token) } }
+            val tasks = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.tasks(token) } }
+            val cds = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.countdowns(token) } }
+            val feed = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.feed(token) } }
             val weather = async { runCatching { WeatherSrc.read() } }
             val events = async { runCatching { CalendarSrc.read(c) } }
             val health = async { runCatching { HealthSrc.read(c) } }
+            val extra = async { runCatching { HealthExtraSrc.readExtra(c) } }
+            val stale = manual || System.currentTimeMillis() - (old.history?.at ?: 0) > 3 * 3_600_000L
+            val history = async { if (stale) runCatching { HealthExtraSrc.readHistory(c) } else null }
 
+            val hr = health.await()
+            val hist = history.await()
             val s = Snapshot(
                 updated = System.currentTimeMillis(),
-                tasks = ok("Tasks", tasks.await(), old.tasks),
-                countdowns = ok("Countdowns", cds.await(), old.countdowns),
-                feed = ok("Feed", feed.await(), old.feed),
-                weather = ok("Weather", weather.await(), old.weather),
-                events = ok("Calendar", events.await(), old.events),
-                health = ok("Health", health.await(), old.health),
-                errors = errors.distinctBy { it.substringBefore(":") }
-                    .filterNot { it.startsWith("Countdowns: no token") || it.startsWith("Feed: no token") },
+                tasks = track("Notion tasks", tasks.await(), old.tasks),
+                countdowns = track("Notion countdowns", cds.await(), old.countdowns),
+                feed = track("HQ Feed", feed.await(), old.feed),
+                weather = track("Weather", weather.await(), old.weather),
+                events = track("Calendar", events.await(), old.events),
+                health = track("Health", hr, old.health),
+                healthX = if (hr.isSuccess) track("Health details", extra.await(), old.healthX) else old.healthX,
+                history = if (hist == null) old.history else track("Health history", hist, old.history),
+                errors = errors.toList(),
             )
             Store.save(c, s)
             HqWidget.updateAll(c)
+            if (!manual) Notifier.afterRefresh(c, s, failed, 6)
             s
         }
     }

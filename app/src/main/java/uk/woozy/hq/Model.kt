@@ -22,6 +22,8 @@ data class Snapshot(
     val health: Health? = null,
     val weather: Weather? = null,
     val feed: JSONObject? = null,
+    val healthX: HealthExtra? = null,
+    val history: HealthHistory? = null,
     val errors: List<String> = emptyList(),
 )
 
@@ -32,10 +34,8 @@ object Store {
     fun setToken(c: Context, t: String) = prefs(c).edit().putString("token", t.trim()).apply()
     fun dob(c: Context): String = prefs(c).getString("dob", "") ?: ""
     fun setDob(c: Context, d: String) = prefs(c).edit().putString("dob", d.trim()).apply()
-    fun stepGoal(c: Context): Int = prefs(c).getInt("stepGoal", 8500)
-    fun setStepGoal(c: Context, g: Int) = prefs(c).edit().putInt("stepGoal", g).apply()
-    fun theme(c: Context): String = prefs(c).getString("theme", "hq") ?: "hq"
-    fun setTheme(c: Context, t: String) = prefs(c).edit().putString("theme", t).apply()
+    /** Step target now lives in Settings. 0 (not set) falls back to 10,000 for the widget bar. */
+    fun stepGoal(c: Context): Int = Cfg.get(c).stepsTarget.let { if (it <= 0) 10000 else it }
     fun asked(c: Context): Boolean = prefs(c).getBoolean("asked", false)
     fun setAsked(c: Context) = prefs(c).edit().putBoolean("asked", true).apply()
 
@@ -71,6 +71,8 @@ object Store {
         s.weather?.let { w -> put("weather", JSONObject().put("temp", w.temp).put("code", w.code)
             .put("hi", w.hi).put("lo", w.lo).put("rain", w.rain)) }
         s.feed?.let { put("feed", it) }
+        s.healthX?.let { put("healthX", it.toJson()) }
+        s.history?.let { put("history", it.toJson()) }
         put("errors", JSONArray(s.errors))
     }
 
@@ -93,6 +95,8 @@ object Store {
         weather = o.optJSONObject("weather")?.let { Weather(it.optDouble("temp"), it.optInt("code"),
             it.optDouble("hi"), it.optDouble("lo"), it.optInt("rain")) },
         feed = o.optJSONObject("feed"),
+        healthX = o.optJSONObject("healthX")?.let { HealthExtra.from(it) },
+        history = o.optJSONObject("history")?.let { HealthHistory.from(it) },
         errors = o.optJSONArray("errors")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
     )
 }

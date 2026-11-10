@@ -32,8 +32,9 @@ import java.util.Locale
 class HqWidget : AppWidgetProvider() {
 
     override fun onUpdate(c: Context, m: AppWidgetManager, ids: IntArray) {
+        Cfg.get(c)
         ids.forEach { render(c, m, it) }
-        RefreshWorker.schedule(c)
+        RefreshWorker.ensure(c)
     }
 
     override fun onAppWidgetOptionsChanged(c: Context, m: AppWidgetManager, id: Int, o: Bundle) = render(c, m, id)
@@ -103,8 +104,8 @@ class HqWidget : AppWidgetProvider() {
             val small = tp(11f, TXT3)
 
             // line 1: date + weather | next countdown
-            val date = LocalDate.now(LONDON).format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK))
-            val wx = s.weather?.let { " · ${it.temp.toInt()}° ${WeatherSrc.label(it.code)}" } ?: ""
+            val date = LocalDate.now(Cfg.zone).format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK))
+            val wx = s.weather?.let { " · ${Fmt.temp(it.temp)} ${WeatherSrc.label(it.code)}" } ?: ""
             val cd = s.countdowns?.firstOrNull()?.let { "${it.name} ${it.days}d" } ?: ""
             val cdW = if (cd.isEmpty()) 0f else minOf(label.measureText(cd.uppercase()), inner * 0.45f)
             var y = (if (compact) 12f else 16f) * d + label.textSize
@@ -162,7 +163,7 @@ class HqWidget : AppWidgetProvider() {
                 today.plusDays(1) -> "Tmrw "
                 else -> t.format(DateTimeFormatter.ofPattern("EEE ", Locale.UK))
             }
-            return "Next: $day${t.format(DateTimeFormatter.ofPattern("HH:mm"))} ${e.title}"
+            return "Next: $day${Fmt.time(t)} ${e.title}"
         }
     }
 }
