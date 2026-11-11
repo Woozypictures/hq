@@ -22,6 +22,16 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -99,6 +109,15 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 private val UK = Locale.UK
+private fun icon(d: String): ImageVector = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+    .addPath(pathData = addPathNodes(d), fill = SolidColor(Color.Black)).build()
+private val TAB_ICONS = listOf(
+    icon("M3,13h8L11,3L3,3v10zM3,21h8v-6L3,15v6zM13,21h8L21,11h-8v10zM13,3v6h8L21,3h-8z"),
+    icon("M12,12c2.21,0 4,-1.79 4,-4s-1.79,-4 -4,-4 -4,1.79 -4,4 1.79,4 4,4zM12,14c-2.67,0 -8,1.34 -8,4v2h16v-2c0,-2.66 -5.33,-4 -8,-4z"),
+    icon("M12,21.35l-1.45,-1.32C5.4,15.36 2,12.28 2,8.5 2,5.42 4.42,3 7.5,3c1.74,0 3.41,0.81 4.5,2.09C13.09,3.81 14.76,3 16.5,3 19.58,3 22,5.42 22,8.5c0,3.78 -3.4,6.86 -8.55,11.54L12,21.35z"),
+    icon("M20,6h-4L16,4c0,-1.11 -0.89,-2 -2,-2h-4c-1.11,0 -2,0.89 -2,2v2L4,6c-1.11,0 -1.99,0.89 -1.99,2L2,19c0,1.11 0.89,2 2,2h16c1.11,0 2,-0.89 2,-2L22,8c0,-1.11 -0.89,-2 -2,-2zM10,4h4v2h-4L10,4z"),
+    icon("M7,14c-1.66,0 -3,1.34 -3,3 0,1.31 -1.16,2 -2,2 0.92,1.22 2.49,2 4,2 2.21,0 4,-1.79 4,-4 0,-1.66 -1.34,-3 -3,-3zM20.71,4.63l-1.34,-1.34c-0.39,-0.39 -1.02,-0.39 -1.41,0L9,12.25 11.75,15l8.96,-8.96c0.39,-0.39 0.39,-1.02 0,-1.41z"),
+)
 private val TAB_NAMES = listOf("Home", "Life", "Health", "Career", "Create")
 private const val REPO_URL = "https://github.com/Woozypictures/hq"
 
@@ -126,7 +145,7 @@ class MainActivity : ComponentActivity() {
         tokenSaved = Store.token(this).isNotEmpty()
         RefreshWorker.ensure(this)
         setContent {
-            val th = themeFor(cfg.theme)
+            val th = resolveTheme(cfg.theme, cfg.appearance, isSystemInDarkTheme())
             val view = LocalView.current
             SideEffect {
                 val c = WindowCompat.getInsetsController(window, view)
@@ -261,6 +280,53 @@ class MainActivity : ComponentActivity() {
         tryStart(Intent(Intent.ACTION_VIEW, uri))
     }
 
+    /** Opens a link in a specific app when installed, otherwise in the browser. */
+    private fun openApp(pkg: String, url: String) {
+        fun go(i: Intent): Boolean = try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        if (!go(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage(pkg))) go(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }
+
+    private fun openWeather() {
+        fun go(i: Intent): Boolean = try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        for (pkg in listOf("com.sec.android.daemonapp", "com.google.android.apps.weather")) {
+            packageManager.getLaunchIntentForPackage(pkg)?.let { if (go(it)) return }
+        }
+        go(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=weather+Slough")))
+    }
+
+    /** Samsung Health tracker pages (steps, sleep, heart rate, weight). Falls back to opening the app. */
+    private fun openShealth(kind: String) {
+        val pkg = "com.sec.android.app.shealth"
+        fun go(i: Intent): Boolean = try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
+        if (go(Intent(Intent.ACTION_VIEW, Uri.parse("shealth://tracker.$kind")).setPackage(pkg))) return
+        packageManager.getLaunchIntentForPackage(pkg)?.let { if (go(it)) return }
+        toast("Samsung Health isn't installed")
+    }
+
+    /** Opens the matching Google Calendar event for a countdown, or the calendar on that date. */
+    private fun openCountdown(c: Countdown) {
+        val day = try { LocalDate.parse(c.date) } catch (_: Exception) { null }
+        if (day != null && CalendarSrc.granted(this)) {
+            try {
+                val z = java.time.ZoneId.systemDefault()
+                val b = day.minusDays(1).atStartOfDay(z).toInstant().toEpochMilli()
+                val e = day.plusDays(2).atStartOfDay(z).toInstant().toEpochMilli()
+                val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also { ContentUris.appendId(it, b); ContentUris.appendId(it, e) }.build()
+                val name = c.name.filter { it.isLetterOrDigit() || it.isWhitespace() }.trim().lowercase()
+                val words = name.split(" ").filter { it.length > 3 }
+                contentResolver.query(uri, arrayOf(CalendarContract.Instances.EVENT_ID, CalendarContract.Instances.TITLE), null, null, null)?.use { cur ->
+                    while (cur.moveToNext()) {
+                        val t = (cur.getString(1) ?: "").lowercase()
+                        if (t.isNotEmpty() && (t.contains(name) || (name.contains(t) && t.length > 3) || words.any { t.contains(it) })) { openEvent(cur.getLong(0)); return }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        val millis = (day ?: LocalDate.now()).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val uri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time").also { ContentUris.appendId(it, millis) }.build()
+        try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) { }
+    }
+
     private fun openEvent(id: Long) {
         try { startActivity(Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id))) } catch (_: Exception) { }
     }
@@ -276,12 +342,15 @@ class MainActivity : ComponentActivity() {
     private fun Screen() {
         val th = LocalTh.current
         var tab by rememberSaveable { mutableIntStateOf(0) }
+        var sub by rememberSaveable { mutableStateOf("") }
         val scroll = rememberScrollState()
-        LaunchedEffect(tab) { scroll.scrollTo(0) }
+        LaunchedEffect(tab, sub) { scroll.scrollTo(0) }
         val s = snap
         Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
             Header(s)
-            Tabs(tab) { tab = it }
+            Tabs(tab) { tab = it; sub = "" }
+            val pages = when (tab) { 1 -> Links.LIFE_PAGES; 2 -> Links.HEALTH_PAGES; 3 -> Links.CAREER_PAGES; 4 -> Links.CREATE_PAGES; else -> emptyList() }
+            if (pages.isNotEmpty()) Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) { SubNav(th.tab[tab], pages, sub) { sub = it } }
             @OptIn(ExperimentalMaterial3Api::class)
             PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
@@ -291,10 +360,10 @@ class MainActivity : ComponentActivity() {
             ) {
                 when (tab) {
                     0 -> HomeTab(s) { tab = it }
-                    1 -> LifeTab(s)
-                    2 -> HealthTab(s)
-                    3 -> CareerTab(s)
-                    else -> CreateTab(s)
+                    1 -> LifeTab(s, sub)
+                    2 -> HealthTab(s, sub)
+                    3 -> CareerTab(s, sub)
+                    else -> CreateTab(s, sub)
                 }
             }
             }
@@ -309,7 +378,7 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.weight(1f)) {
                 T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
                 T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), 32.sp, th.fg, weight = FontWeight.Bold, caps = true)
-                T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) + " · pull down to refresh" else "Pull down to refresh", 11.sp, th.muted, caps = true)
+                T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "", 11.sp, th.muted, caps = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (homeEditing) Pill("Done") { homeEditing = false } else Pill("Settings") { openSettings() }
@@ -330,7 +399,12 @@ class MainActivity : ComponentActivity() {
                     Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(50)).background(bg)
                         .clickable { onSelect(i) }.padding(horizontal = 4.dp, vertical = 9.dp),
                     contentAlignment = Alignment.Center,
-                ) { T(name, 13.sp, fg, weight = FontWeight.SemiBold, maxLines = 1, center = true, caps = true) }
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(TAB_ICONS[i], contentDescription = null, tint = fg, modifier = Modifier.size(14.dp))
+                        T(name, 12.sp, fg, weight = FontWeight.SemiBold, maxLines = 1, center = true, caps = true)
+                    }
+                }
             }
         }
     }
@@ -423,17 +497,106 @@ class MainActivity : ComponentActivity() {
 
     /** Draws a tab's blocks in the saved order; long-press to rearrange on every tab. */
     @Composable
-    private fun Rearrange(tab: String, def: List<String>, hidden: Set<String> = emptySet(), render: @Composable (String) -> Unit) {
+    private fun Rearrange(tab: String, def: List<String>, hidden: Set<String> = emptySet(), extra: @Composable (String) -> Unit = {}, render: @Composable (String) -> Unit) {
         val th = LocalTh.current
         val vis = orderOf(tab, def).filter { it !in hidden }
         if (homeEditing) T("Drag a card up or down. Tap Done when finished.", 12.sp, th.muted)
-        vis.forEach { k -> androidx.compose.runtime.key(k) { Draggable(tab, def, k, vis) { render(k) } } }
+        vis.forEach { k ->
+            androidx.compose.runtime.key(k) {
+                Draggable(tab, def, k, vis) { render(k) }
+                if (homeEditing) extra(k)
+            }
+        }
+    }
+
+    private val SUB_AREAS = mapOf("Apartment" to listOf("Flat"), "Finances" to listOf("Money"), "Travel" to listOf("Travel"),
+        "CIMA" to listOf("CIMA"), "Content" to listOf("Content"), "Music" to listOf("Music"))
+
+    private fun pageId(url: String): String = Regex("[0-9a-fA-F]{32}").findAll(url.replace("-", "")).lastOrNull()?.value?.lowercase() ?: ""
+
+    private val pageBlocks = mutableStateMapOf<String, List<Block>>()
+    private val pageErr = mutableStateMapOf<String, String>()
+
+    private fun loadPage(id: String) {
+        if (id.isEmpty()) return
+        if (pageBlocks[id] == null) Store.pageCache(this, id)?.let { pageBlocks[id] = it }
+        val token = Store.token(this)
+        if (token.isEmpty()) { pageErr[id] = "Add your Notion token in Settings > Connections"; return }
+        lifecycleScope.launch {
+            try {
+                val b = withContext(Dispatchers.IO) { NotionSrc.page(token, id) }
+                pageBlocks[id] = b; pageErr.remove(id); Store.savePage(this@MainActivity, id, b)
+            } catch (e: Exception) { pageErr[id] = friendly(e.message ?: "Couldn't load this page") }
+        }
+    }
+
+    /** Row of sub-page chips under a main tab. */
+    @Composable
+    private fun SubNav(tc: Color, pages: List<Pair<String, String>>, sel: String, pick: (String) -> Unit) {
+        val th = LocalTh.current
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            (listOf("" to "Overview") + pages.map { it.first to it.first }).forEach { (k, label) ->
+                val on = sel == k
+                Box(Modifier.clip(RoundedCornerShape(50))
+                    .background(if (on) (if (th.glass) Color(0x55FFFFFF) else tc) else if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, tc, 0.12f))
+                    .clickable { pick(k) }.padding(horizontal = 14.dp, vertical = 9.dp)) {
+                    T(label, 13.sp, if (on && !th.glass) th.onTab else if (th.glass) th.fg else lerp(th.fg, tc, 0.75f), weight = FontWeight.SemiBold, caps = true)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SubPageView(tc: Color, name: String, url: String, s: Snapshot) {
+        val th = LocalTh.current
+        val id = pageId(url)
+        LaunchedEffect(id) { loadPage(id) }
+        val areas = SUB_AREAS[name]
+        if (areas != null) Section("Tasks") { TasksPanel(s, tasksIn(s, *areas.toTypedArray()), "No tasks here", "lane") }
+        val blocks = pageBlocks[id]
+        val err = pageErr[id]
+        if (err != null) Flag(err)
+        if (blocks == null && err == null) Panel { Muted("Loading...") }
+        if (blocks != null) {
+            val pages = blocks.filter { it.kind == "page" }
+            if (pages.isNotEmpty()) Section("Pages") {
+                pages.forEach { b ->
+                    Row(Modifier.fillMaxWidth().card(14.dp, tc).clickable { open(b.url) }.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        T(b.text.ifBlank { "Untitled" }, 15.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold, maxLines = 2)
+                        T(">", 15.sp, th.muted)
+                    }
+                }
+            }
+            val text = blocks.filter { it.kind != "page" }
+            if (text.isNotEmpty()) Panel {
+                text.take(40).forEach { b ->
+                    when (b.kind) {
+                        "h" -> Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { T(b.text, 15.sp, th.fg, weight = FontWeight.Bold) }
+                        "todo" -> Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            T(if (b.checked) "[x]" else "[ ]", 13.sp, th.muted, Modifier.width(30.dp))
+                            T(b.text, 14.sp, if (b.checked) th.muted else th.fg)
+                        }
+                        else -> Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { T((if (b.kind == "li") "- " else "") + b.text, 14.sp, th.fg) }
+                    }
+                }
+            }
+            if (pages.isEmpty() && text.isEmpty()) Panel { Muted("Nothing to show on this page yet") }
+        }
+        Pill("Open page in Notion") { open(url) }
     }
 
     @Composable
     private fun HomeTab(s: Snapshot, go: (Int) -> Unit) {
         val th = LocalTh.current
         val problems = diag.values.filter { !it.ok }
+        val hour = java.time.LocalTime.now(Cfg.zone).hour
+        val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
+        val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
+        Column {
+            T("$greet, Mahesh.", 20.sp, th.fg, weight = FontWeight.Bold)
+            if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", 13.sp, th.muted)
+        }
         if (cfg.showErrors && problems.isNotEmpty()) {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .background(if (th.glass) Color(0x14FFFFFF) else lerp(th.panel, th.warn, 0.12f))
@@ -443,102 +606,125 @@ class MainActivity : ComponentActivity() {
                 T("Tap for details", 11.sp, th.muted, caps = true)
             }
         }
-        val hidden = cfg.homeHidden + (if (s.countdowns.isNullOrEmpty()) setOf("countdowns") else emptySet())
-        Rearrange("home", HOME_CARDS, hidden) { key ->
+        val three = listOf("steps", "sleep", "rhr")
+        val small = three.filter { it !in cfg.homeWide && it !in cfg.homeHidden }
+        val hidden = cfg.homeHidden + (if (small.isEmpty()) setOf("vitals") else emptySet()) +
+            three.filter { it !in cfg.homeWide }.toSet() + (if (s.countdowns.isNullOrEmpty()) setOf("countdowns") else emptySet())
+        val names = mapOf("steps" to "Steps", "sleep" to "Sleep", "rhr" to "Heart rate")
+        Rearrange("home", HOME_CARDS, hidden, extra = { k ->
+            if (k == "vitals") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                small.forEach { Pill("${names[it]} wide") { update(cfg.copy(homeWide = cfg.homeWide + it)) } }
+            }
+            if (k in three) Pill("Make ${names[k]} small") { update(cfg.copy(homeWide = cfg.homeWide - k)) }
+        }) { key ->
             when (key) {
-                "tasks" -> Section("Priority tasks", "All tasks", { open(Links.TASKS) }) { TasksPanel(s, s.tasks?.take(5)) }
-                "steps" -> StepsCard(s) { go(2) }
-                "sleep" -> SleepCard(s) { go(2) }
-                "rhr" -> RhrCard(s) { go(2) }
+                "tasks" -> Section("Priority tasks", "All tasks", { open(Links.TASKS) }) { TasksPanel(s, s.tasks?.take(6), "Nothing to do. Nice.", "lane") }
+                "vitals" -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    small.forEach { k ->
+                        when (k) {
+                            "steps" -> MiniStat("Steps", s.health?.steps?.let { nf.format(it) } ?: "-", if (cfg.stepsTarget > 0) "of ${nf.format(cfg.stepsTarget)}" else null,
+                                s.health?.steps?.let { if (cfg.stepsTarget > 0) (it.toFloat() / cfg.stepsTarget).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("pedometer") }
+                            "sleep" -> MiniStat("Sleep", s.health?.sleepMin?.takeIf { it > 0 }?.let { Fmt.duration(it) } ?: "-", if (cfg.sleepTargetMin > 0) "of ${Fmt.duration(cfg.sleepTargetMin.toLong())}" else null,
+                                s.health?.sleepMin?.takeIf { it > 0 }?.let { if (cfg.sleepTargetMin > 0) (it.toFloat() / cfg.sleepTargetMin).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("sleep") }
+                            else -> MiniStat("Heart rate", s.health?.restingHr?.let { "$it" } ?: "-", "resting bpm", null, Modifier.weight(1f)) { openShealth("heartrate") }
+                        }
+                    }
+                    repeat(3 - small.size) { Spacer(Modifier.weight(1f)) }
+                }
+                "calories" -> EnergyCard(s, false)
+                "steps" -> StepsCard(s) { openShealth("pedometer") }
+                "sleep" -> SleepCard(s) { openShealth("sleep") }
+                "rhr" -> RhrCard(s) { openShealth("heartrate") }
                 "events" -> Section("Upcoming events", "Open", { openCalendar() }) { EventsPanel(s) }
                 "countdowns" -> CountdownRow(s)
                 "feed" -> FeedSection(s)
                 "weather" -> WeatherCard(s)
             }
         }
-        NotionLinks("Open in Notion", listOf("Dashboard" to Links.DASHBOARD, "Today" to Links.TODAY, "Life" to Links.LIFE,
-            "Health" to Links.HEALTH, "Career" to Links.CAREER, "Create" to Links.CREATE), th.tab[0])
     }
 
     @Composable
-    private fun LifeTab(s: Snapshot) {
+    private fun LifeTab(s: Snapshot, sub: String) {
         val tc = LocalTh.current.tab[1]
-        Rearrange("life", listOf("progress", "admin", "links")) { k ->
+        if (sub.isNotEmpty()) { Links.LIFE_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
+        Rearrange("life", listOf("progress", "admin")) { k ->
             when (k) {
                 "progress" -> Section("Progress") { Panel { LifeBars(tc) } }
-                "admin" -> Section("Life admin", "Open", { open(Links.LIFE) }) {
-                    TasksPanel(s, tasksIn(s, "Flat", "Money", "Life admin"), "Nothing on for flat, money or admin")
+                else -> Section("Life admin", "Open", { open(Links.LIFE) }) {
+                    TasksPanel(s, tasksIn(s, "Flat", "Money", "Life admin"), "Nothing on for flat, money or admin", "area")
                 }
-                else -> NotionLinks("Open in Notion", Links.LIFE_PAGES + ("L I F E hub" to Links.LIFE), tc)
             }
         }
     }
 
     @Composable
-    private fun HealthTab(s: Snapshot) {
+    private fun HealthTab(s: Snapshot, sub: String) {
         val tc = LocalTh.current.tab[2]
-        Rearrange("health", HEALTH_CARDS + listOf("tasks", "links"), cfg.healthHidden) { key ->
+        if (sub.isNotEmpty()) { Links.HEALTH_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
+        Rearrange("health", HEALTH_CARDS + listOf("tasks"), cfg.healthHidden) { key ->
             when (key) {
-                "steps" -> StepsCard(s, null)
-                "sleep" -> SleepCard(s, null)
-                "rhr" -> RhrCard(s, null)
+                "steps" -> StepsCard(s) { openShealth("pedometer") }
+                "sleep" -> SleepCard(s) { openShealth("sleep") }
+                "rhr" -> RhrCard(s) { openShealth("heartrate") }
                 "weight" -> WeightCard(s)
-                "nutrition" -> NutritionCard(s)
+                "nutrition" -> EnergyCard(s, true)
                 "activity" -> ActivityTiles(s)
                 "weekly" -> WeeklyCard(s)
-                "tasks" -> Section("Health tasks") { TasksPanel(s, tasksIn(s, "Health"), "No health tasks") }
-                else -> NotionLinks("Open in Notion", Links.HEALTH_PAGES + ("H E A L T H hub" to Links.HEALTH), tc)
+                else -> Section("Health tasks") { TasksPanel(s, tasksIn(s, "Health"), "No health tasks") }
             }
         }
     }
 
     @Composable
-    private fun CareerTab(s: Snapshot) {
+    private fun CareerTab(s: Snapshot, sub: String) {
         val tc = LocalTh.current.tab[3]
-        Rearrange("career", listOf("cima", "study", "links")) { k ->
+        if (sub.isNotEmpty()) { Links.CAREER_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
+        Rearrange("career", listOf("cima", "study")) { k ->
             when (k) {
                 "cima" -> Section("CIMA") {
                     val cima = s.countdowns?.filter { it.name.contains("CIMA", true) || it.name.contains("E2", true) }
                     if (cima.isNullOrEmpty()) Panel { Muted("No CIMA date in Countdowns yet") }
                     else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        cima.take(2).forEach { c -> Tile(c.name, c.days.toString(), "days to go", tc, Modifier.weight(1f)) { open(Links.CAREER_PAGES[0].second) } }
+                        cima.take(2).forEach { c -> Tile(c.name, c.days.toString(), "days to go", tc, Modifier.weight(1f)) { openCountdown(c) } }
                         if (cima.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                "study" -> Section("Study and work") { TasksPanel(s, tasksIn(s, "CIMA", "Work"), "No CIMA or work tasks") }
-                else -> NotionLinks("Open in Notion", Links.CAREER_PAGES + ("C A R E E R hub" to Links.CAREER), tc)
+                else -> Section("Study and work") { TasksPanel(s, tasksIn(s, "CIMA", "Work"), "No CIMA or work tasks", "area") }
             }
         }
     }
 
     @Composable
-    private fun CreateTab(s: Snapshot) {
+    private fun CreateTab(s: Snapshot, sub: String) {
         val th = LocalTh.current
         val tc = th.tab[4]
-        val nf = NumberFormat.getIntegerInstance(UK)
+        if (sub.isNotEmpty()) { Links.CREATE_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
         val f = s.feed
         val yt = f?.optJSONObject("youtube")
         val ig = f?.optJSONObject("instagram")
-        Rearrange("create", listOf("youtube", "instagram", "content", "links")) { k ->
+        val ytHandle = yt?.optString("handle")?.takeIf { it.isNotEmpty() } ?: "@woozypictures"
+        val igHandle = ig?.optString("handle")?.takeIf { it.isNotEmpty() } ?: "woozypictures"
+        Rearrange("create", listOf("youtube", "instagram", "content")) { k ->
             when (k) {
                 "youtube" -> Section("YouTube" + (yt?.optString("channel")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
                     if (yt == null) Panel { Muted("Stats arrive with the morning refresh") }
                     else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Tile("Subscribers", nf.format(yt.optLong("subs")), if (yt.optLong("subs30") != 0L) "${yt.optLong("subs30")} in 30d" else null, tc, Modifier.weight(1f))
-                        Tile("Views", nf.format(yt.optLong("views")), "+${nf.format(yt.optLong("views30"))} in 30d", tc, Modifier.weight(1f))
-                        Tile("Videos", nf.format(yt.optLong("videos")), null, tc, Modifier.weight(1f))
+                        val go = { openApp("com.google.android.youtube", "https://www.youtube.com/$ytHandle") }
+                        Tile("Subscribers", nf.format(yt.optLong("subs")), if (yt.optLong("subs30") != 0L) "${yt.optLong("subs30")} in 30d" else null, tc, Modifier.weight(1f), go)
+                        Tile("Views", nf.format(yt.optLong("views")), "+${nf.format(yt.optLong("views30"))} in 30d", tc, Modifier.weight(1f), go)
+                        Tile("Videos", nf.format(yt.optLong("videos")), null, tc, Modifier.weight(1f), go)
                     }
                 }
                 "instagram" -> Section("Instagram" + (ig?.optString("handle")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
-                    if (ig == null) Panel { Muted("Instagram isn't connected to vidIQ yet") }
+                    if (ig == null) Panel { Muted("Instagram stats arrive with the morning refresh") }
                     else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Tile("Followers", nf.format(ig.optLong("followers")), null, tc, Modifier.weight(1f))
-                        Tile("Reach", if (ig.has("reach30")) nf.format(ig.optLong("reach30")) else "-", "30 days", tc, Modifier.weight(1f))
-                        Tile("Posts", if (ig.has("posts")) nf.format(ig.optLong("posts")) else "-", null, tc, Modifier.weight(1f))
+                        val go = { openApp("com.instagram.android", "https://www.instagram.com/$igHandle") }
+                        Tile("Followers", nf.format(ig.optLong("followers")), null, tc, Modifier.weight(1f), go)
+                        Tile("Reach", if (ig.has("reach30")) nf.format(ig.optLong("reach30")) else "-", "30 days", tc, Modifier.weight(1f), go)
+                        Tile("Posts", if (ig.has("posts")) nf.format(ig.optLong("posts")) else "-", null, tc, Modifier.weight(1f), go)
                     }
                 }
-                "content" -> Section("Content and music") { TasksPanel(s, tasksIn(s, "Content", "Music"), "No content tasks") }
-                else -> NotionLinks("Open in Notion", Links.CREATE_PAGES + ("C R E A T E hub" to Links.CREATE), tc)
+                else -> Section("Content and music") { TasksPanel(s, tasksIn(s, "Content", "Music"), "No content tasks", "area") }
             }
         }
     }
@@ -551,21 +737,46 @@ class MainActivity : ComponentActivity() {
         val cds = s.countdowns
         if (cds.isNullOrEmpty()) return
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            cds.take(3).forEach { c -> Tile(c.name, c.days.toString(), if (c.days == 1L) "day" else "days", tc, Modifier.weight(1f)) { open(c.url) } }
+            cds.take(3).forEach { c -> Tile(c.name, c.days.toString(), if (c.days == 1L) "day" else "days", tc, Modifier.weight(1f)) { openCountdown(c) } }
             repeat(3 - minOf(3, cds.size)) { Spacer(Modifier.weight(1f)) }
         }
     }
 
     @Composable
     private fun EventsPanel(s: Snapshot) {
+        val th = LocalTh.current
+        var range by rememberSaveable { mutableIntStateOf(0) }
+        val z = Cfg.zone
+        val today = LocalDate.now(z)
+        val firstDay = if (cfg.weekStart == "SUN") DayOfWeek.SUNDAY else DayOfWeek.MONDAY
+        val weekEnd = today.with(TemporalAdjusters.nextOrSame(firstDay.minus(1)))
+        val monthEnd = today.withDayOfMonth(today.lengthOfMonth())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Today", "This week", "This month").forEachIndexed { i, label ->
+                Box(Modifier.clip(RoundedCornerShape(50))
+                    .background(if (range == i) (if (th.glass) Color(0x55FFFFFF) else th.tab[0]) else if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.07f))
+                    .clickable { range = i }.padding(horizontal = 12.dp, vertical = 7.dp)) {
+                    T(label, 12.sp, if (range == i && !th.glass) th.onTab else th.fg, weight = FontWeight.SemiBold)
+                }
+            }
+        }
         val ev = s.events
+        val list = ev?.filter { e ->
+            val d = Instant.ofEpochMilli(e.start).atZone(z).toLocalDate()
+            when (range) {
+                0 -> d == today || (e.allDay && d.isBefore(today))
+                1 -> e.allDay && !d.isAfter(weekEnd)
+                else -> e.allDay && !d.isAfter(monthEnd)
+            }
+        }
         Panel {
             when {
                 ev == null -> Muted(if (CalendarSrc.granted(this@MainActivity)) "Calendar hasn't loaded yet" else "Allow calendar access in Settings > Connections")
-                ev.isEmpty() -> Muted("Nothing in the next 3 days")
-                else -> ev.take(6).forEach { EventRow(it) }
+                list.isNullOrEmpty() -> Muted(when (range) { 0 -> "Nothing else today"; 1 -> "No all-day events this week"; else -> "No all-day events this month" })
+                else -> list.take(12).forEach { EventRow(it, range > 0) }
             }
         }
+        if (range > 0) T("Week and month show all-day events only.", 11.sp, th.muted)
     }
 
     @Composable
@@ -579,8 +790,7 @@ class MainActivity : ComponentActivity() {
             val mail = f.optJSONArray("emails")
             Panel {
                 val yt = f.optJSONObject("youtube")
-                if (yt != null) Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    val nf = NumberFormat.getIntegerInstance(UK)
+                if (yt != null) Column(Modifier.clickable { openApp("com.google.android.youtube", "https://www.youtube.com/" + (yt.optString("handle").ifEmpty { "@woozypictures" })) }.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     T("YouTube · ${nf.format(yt.optLong("subs"))} subs · +${nf.format(yt.optLong("views30"))} views in 30d", 14.sp, th.fg, weight = FontWeight.Medium)
                 }
                 if (mail != null) for (i in 0 until minOf(mail.length(), 4)) {
@@ -606,7 +816,7 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val w = s.weather
         Section("Weather · Slough") {
-            Panel {
+            Column(Modifier.fillMaxWidth().card(18.dp).clickable { openWeather() }.padding(vertical = 4.dp)) {
                 if (w == null) Muted("Weather hasn't loaded yet")
                 else Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     Row(verticalAlignment = Alignment.Bottom) {
@@ -622,6 +832,10 @@ class MainActivity : ComponentActivity() {
     // ---------- health cards ----------
 
     private val nf: NumberFormat get() = NumberFormat.getIntegerInstance(UK)
+    private val C_ENERGY = Color(0xFFF2A488)
+    private val C_PROTEIN = Color(0xFF7BC99A)
+    private val C_CARBS = Color(0xFF62C4D1)
+    private val C_FAT = Color(0xFFBE98E6)
 
     @Composable
     private fun HCard(title: String, onClick: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
@@ -644,6 +858,19 @@ class MainActivity : ComponentActivity() {
         if (st != null && !st.ok) parts += "showing saved data"
         val old = recorded != null && System.currentTimeMillis() - recorded > 36 * 3_600_000L
         T(parts.joinToString(" · ") + if (old) " · older reading" else "", 11.sp, if (old) th.amber else th.muted)
+    }
+
+    @Composable
+    private fun MiniStat(title: String, value: String, sub: String?, pct: Float?, modifier: Modifier, onClick: () -> Unit) {
+        val th = LocalTh.current
+        Column(modifier.heightIn(min = 96.dp).card(16.dp).clickable(onClick = onClick).padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            T(title, 11.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
+            Column {
+                T(value, 22.sp, th.fg, weight = FontWeight.Bold, maxLines = 1)
+                if (sub != null) T(sub, 11.sp, th.muted, maxLines = 1)
+                if (pct != null) { Spacer(Modifier.height(6.dp)); Segments(pct, th.tab[2], 6.dp) }
+            }
+        }
     }
 
     @Composable
@@ -702,7 +929,7 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val h = s.health
         val x = s.healthX
-        HCard("Weight", null) {
+        HCard("Weight", { openShealth("weight") }) {
             if (h == null) { T(healthMissing(), 14.sp, th.muted); return@HCard }
             T(h.weightKg?.let { Fmt.weight(it) } ?: "-", 30.sp, th.fg, weight = FontWeight.Bold)
             if (cfg.weighInsPerWeek > 0 && x != null) T("Weigh-ins this week: ${x.weighIns7} of ${cfg.weighInsPerWeek}", 12.sp, th.muted)
@@ -712,29 +939,76 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun NutriRow(label: String, value: Double?, target: Int, unit: String) {
+    private fun Donut(pct: Float, color: Color, value: String, label: String) {
         val th = LocalTh.current
-        val has = value != null && value > 0
-        Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-            Row(Modifier.fillMaxWidth()) {
-                T(label, 13.sp, th.muted, Modifier.weight(1f))
-                T(if (has) nf.format(value!!.toLong()) + (if (unit.isNotEmpty()) " $unit" else "") + (if (target > 0) " / ${nf.format(target)}" else "") else "-", 15.sp, th.fg, weight = FontWeight.Medium)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val sw = size.minDimension * 0.13f
+                    val tl = Offset(sw / 2, sw / 2)
+                    val sz = Size(size.width - sw, size.height - sw)
+                    drawArc(color.copy(alpha = 0.25f), 0f, 360f, false, topLeft = tl, size = sz, style = Stroke(sw))
+                    if (pct > 0f) drawArc(color, -90f, 360f * pct.coerceIn(0f, 1f), false, topLeft = tl, size = sz, style = Stroke(sw, cap = StrokeCap.Round))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    T(value, 16.sp, th.fg, weight = FontWeight.Bold, maxLines = 1)
+                    T("kcal", 10.sp, th.muted)
+                }
             }
-            if (has && target > 0) { Spacer(Modifier.height(4.dp)); Segments((value!!.toFloat() / target).coerceIn(0f, 1f), th.tab[2], 8.dp) }
+            T(label, 12.sp, th.muted, weight = FontWeight.Medium)
         }
     }
 
     @Composable
-    private fun NutritionCard(s: Snapshot) {
+    private fun MacroBar(label: String, value: Double?, target: Int, unit: String, color: Color) {
+        val th = LocalTh.current
+        val has = value != null && value > 0
+        Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                T(label, 13.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold)
+                T(if (has) nf.format(value!!.toLong()) + (if (target > 0) " / ${nf.format(target)}" else "") + " $unit" else "- " + (if (target > 0) "/ ${nf.format(target)} $unit" else ""), 13.sp, th.muted)
+            }
+            Spacer(Modifier.height(4.dp))
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.28f))) {
+                if (has && target > 0) Box(Modifier.fillMaxWidth((value!! / target).toFloat().coerceIn(0.02f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(color))
+            }
+        }
+    }
+
+    /** Cronometer-style energy summary and macro targets. Cronometer writes these totals to Health Connect. */
+    @Composable
+    private fun EnergyCard(s: Snapshot, full: Boolean) {
         val th = LocalTh.current
         val h = s.health
         val x = s.healthX
-        HCard("Nutrition today", null) {
+        HCard(if (full) "Nutrition today" else "Calories", { openApp("com.cronometer.android", "https://cronometer.com") }) {
             if (h == null) { T(healthMissing(), 14.sp, th.muted); return@HCard }
-            NutriRow("Calories", h.eatenKcal, cfg.caloriesTarget, "kcal")
-            NutriRow("Protein", x?.proteinG, cfg.proteinTarget, "g")
-            NutriRow("Fibre", x?.fibreG, cfg.fibreTarget, "g")
-            if (cfg.waterTargetMl > 0) T("Water target ${nf.format(cfg.waterTargetMl)} ml saved. HQ doesn't read water yet.", 11.sp, th.muted)
+            val eaten = h.eatenKcal?.takeIf { it > 0 }
+            val burned = (h.totalKcal ?: h.activeKcal)?.takeIf { it > 0 }
+            val target = cfg.caloriesTarget
+            val left = if (target > 0 && eaten != null) target - eaten else if (target > 0) target.toDouble() else null
+            if (full) {
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Donut(if (target > 0 && eaten != null) (eaten / target).toFloat() else 0f, C_ENERGY, eaten?.let { nf.format(it.toLong()) } ?: "-", "Consumed")
+                    Donut(if (burned != null) 1f else 0f, C_FAT, burned?.let { nf.format(it.toLong()) } ?: "-", "Expenditure")
+                    Donut(if (left != null && target > 0) (left / target).toFloat().coerceIn(0f, 1f) else 0f, C_CARBS, left?.let { nf.format(it.toLong()) } ?: "-", "Remaining")
+                }
+                Spacer(Modifier.height(10.dp))
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    T(eaten?.let { nf.format(it.toLong()) } ?: "-", 30.sp, th.fg, weight = FontWeight.Bold)
+                    if (target > 0) T(" / ${nf.format(target)} kcal", 14.sp, th.muted, modifier = Modifier.padding(bottom = 4.dp))
+                }
+                if (left != null && eaten != null) T((if (left >= 0) nf.format(left.toLong()) + " left" else nf.format((-left).toLong()) + " over"), 12.sp, th.muted)
+                Spacer(Modifier.height(6.dp))
+            }
+            MacroBar("Energy", eaten, cfg.caloriesTarget, "kcal", C_ENERGY)
+            MacroBar("Protein", x?.proteinG, cfg.proteinTarget, "g", C_PROTEIN)
+            val net = if (x?.carbsG != null) (x.carbsG - (x.fibreG ?: 0.0)).coerceAtLeast(0.0) else null
+            MacroBar("Net carbs", net, cfg.carbsTarget, "g", C_CARBS)
+            MacroBar("Fat", x?.fatG, cfg.fatTarget, "g", C_FAT)
+            if (full && cfg.fibreTarget > 0) MacroBar("Fibre", x?.fibreG, cfg.fibreTarget, "g", C_PROTEIN)
             Spacer(Modifier.height(4.dp))
             Fresh(x?.nutritionAt)
         }
@@ -751,37 +1025,69 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun StepsBars(values: List<Long?>, target: Int, color: Color) {
+        val th = LocalTh.current
+        Canvas(Modifier.fillMaxWidth().height(110.dp)) {
+            val maxV = maxOf((values.filterNotNull().maxOrNull() ?: 0L).toFloat(), target.toFloat(), 1f)
+            val n = values.size.coerceAtLeast(1)
+            val slot = size.width / n
+            val bw = slot * 0.62f
+            values.forEachIndexed { i, v ->
+                if (v != null && v > 0) {
+                    val bh = size.height * (v / maxV)
+                    drawRoundRect(if (target > 0 && v >= target) color else color.copy(alpha = 0.45f), Offset(i * slot + (slot - bw) / 2, size.height - bh), Size(bw, bh), androidx.compose.ui.geometry.CornerRadius(bw / 4))
+                }
+            }
+            if (target > 0) {
+                val y = size.height * (1f - target / maxV)
+                drawLine(th.muted, Offset(0f, y), Offset(size.width, y), strokeWidth = 2f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 10f)))
+            }
+        }
+    }
+
+    @Composable
     private fun WeeklyCard(s: Snapshot) {
         val th = LocalTh.current
         var span by rememberSaveable { mutableIntStateOf(7) }
         val hist = s.history
-        HCard("Weekly overview", null) {
+        HCard(if (span == 7) "Weekly overview" else "Monthly overview", null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(7 to "7 days", 30 to "30 days").forEach { (n, label) ->
                     Box(Modifier.clip(RoundedCornerShape(50)).background(if (span == n) th.tab[2].copy(alpha = if (th.glass) 0.35f else 1f) else Color(0x22888888))
                         .clickable { span = n }.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                        T(label, 12.sp, if (span == n && !th.glass) Color.White else th.fg, weight = FontWeight.SemiBold)
+                        T(label, 12.sp, if (span == n && !th.glass) th.onTab else th.fg, weight = FontWeight.SemiBold)
                     }
                 }
             }
             Spacer(Modifier.height(8.dp))
             if (hist == null || hist.days.isEmpty()) { T("History appears after the first successful health refresh.", 13.sp, th.muted); return@HCard }
-            val win = hist.days.takeLast(span)
-            @Composable fun row(label: String, f: (DayStat) -> Double?, fmt: (Double) -> String) {
+            val todayStr = LocalDate.now(Cfg.zone).toString()
+            val all = hist.days.filter { it.date != todayStr }
+            val win = all.takeLast(span)
+            val prev = if (span == 7) all.dropLast(span).takeLast(span) else emptyList()
+            T("Steps per day" + if (cfg.stepsTarget > 0) " (dashed line = target)" else "", 11.sp, th.muted)
+            StepsBars(win.map { it.steps }, cfg.stepsTarget, th.tab[2])
+            Spacer(Modifier.height(6.dp))
+            @Composable fun row(label: String, f: (DayStat) -> Double?, fmt: (Double) -> String, dfmt: (Double) -> String) {
                 val v = win.mapNotNull(f)
+                val pv = prev.mapNotNull(f)
                 Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Column(Modifier.weight(1f)) {
                         T(label, 13.sp, th.muted)
                         if (v.isNotEmpty() && v.size < span) T("based on ${v.size} of $span days", 10.sp, th.amber)
                     }
-                    T(if (v.isEmpty()) "-" else fmt(v.average()), 15.sp, th.fg, weight = FontWeight.Medium)
+                    Column(horizontalAlignment = Alignment.End) {
+                        T(if (v.isEmpty()) "-" else fmt(v.average()), 15.sp, th.fg, weight = FontWeight.Medium)
+                        if (v.isNotEmpty() && pv.size >= 3) T(dfmt(v.average() - pv.average()) + " vs last week", 10.sp, th.muted)
+                    }
                 }
             }
-            row("Average steps", { it.steps?.toDouble() }) { nf.format(it.toLong()) }
-            row("Average sleep", { it.sleepMin?.toDouble() }) { Fmt.duration(it.toLong()) }
-            row("Average resting HR", { it.rhr?.toDouble() }) { "${it.toInt()} bpm" }
-            row("Average calories", { it.kcal }) { nf.format(it.toLong()) + " kcal" }
-            row("Average protein", { it.protein }) { nf.format(it.toLong()) + " g" }
+            fun sg(d: Double) = if (d >= 0) "+" else "-"
+            row("Average steps", { it.steps?.toDouble() }, { nf.format(it.toLong()) }, { sg(it) + nf.format(kotlin.math.abs(it).toLong()) })
+            row("Average sleep", { it.sleepMin?.toDouble() }, { Fmt.duration(it.toLong()) }, { sg(it) + kotlin.math.abs(it).toLong() + " min" })
+            row("Average resting HR", { it.rhr?.toDouble() }, { "${it.toInt()} bpm" }, { sg(it) + kotlin.math.abs(it).toInt() + " bpm" })
+            row("Average calories", { it.kcal }, { nf.format(it.toLong()) + " kcal" }, { sg(it) + nf.format(kotlin.math.abs(it).toLong()) })
+            row("Average protein", { it.protein }, { nf.format(it.toLong()) + " g" }, { sg(it) + kotlin.math.abs(it).toLong() + " g" })
             val cutoff = System.currentTimeMillis() - span * 86_400_000L
             val pts = hist.weights.filter { it.t >= cutoff }
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
@@ -793,7 +1099,7 @@ class MainActivity : ComponentActivity() {
                 T(if (pts.isEmpty()) "-" else Fmt.weight(pts.last().kg) + if (pts.size >= 2) "  " + Fmt.weightDelta(pts.last().kg - pts.first().kg) else "", 15.sp, th.fg, weight = FontWeight.Medium)
             }
             Spacer(Modifier.height(4.dp))
-            T("Completed days only for steps, calories and heart rate. Missing days are left out, not counted as zero.", 10.sp, th.muted)
+            T("Completed days only. Missing days are left out, not counted as zero.", 10.sp, th.muted)
         }
     }
 
@@ -874,8 +1180,16 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun TasksPanel(s: Snapshot, list: List<Task>?, empty: String = "Nothing to do. Nice.") {
+    private fun TasksPanel(s: Snapshot, list: List<Task>?, empty: String = "Nothing to do. Nice.", groupBy: String? = null) {
         val th = LocalTh.current
+        @Composable fun item(t: Task) {
+            Column(Modifier.fillMaxWidth().clickable { open(t.url) }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                T(t.title, 15.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
+                val meta = listOf(if (groupBy == "area") null else t.area, if (groupBy == "lane") null else t.lane, t.due.take(10).takeIf { it.isNotEmpty() }?.let { "due " + fmtDate(it) })
+                    .filter { !it.isNullOrBlank() }.joinToString(" · ")
+                if (meta.isNotEmpty()) T(meta, 11.sp, th.muted, caps = true)
+            }
+        }
         Panel {
             when {
                 list == null -> {
@@ -883,24 +1197,24 @@ class MainActivity : ComponentActivity() {
                     Muted(when {
                         Store.token(this@MainActivity).isEmpty() -> "Add your Notion token in Settings > Connections"
                         st != null && !st.ok -> st.lastError
-                        else -> "Tasks haven't loaded yet. Tap Refresh."
+                        else -> "Tasks haven't loaded yet. Pull down to refresh."
                     })
                 }
                 list.isEmpty() -> Muted(empty)
-                else -> list.take(8).forEach { t ->
-                    Column(Modifier.fillMaxWidth().clickable { open(t.url) }.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                        T(t.title, 15.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
-                        val meta = listOf(t.area, t.lane, t.due.take(10).takeIf { it.isNotEmpty() }?.let { "due " + fmtDate(it) })
-                            .filter { !it.isNullOrBlank() }.joinToString(" · ")
-                        T(meta, 11.sp, th.muted, caps = true)
+                groupBy != null -> {
+                    val groups = list.groupBy { (if (groupBy == "area") it.area else it.lane).ifBlank { "Other" } }
+                    groups.entries.forEach { (g, items) ->
+                        Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) { T(g, 11.sp, th.muted, weight = FontWeight.Bold, caps = true) }
+                        items.take(6).forEach { item(it) }
                     }
                 }
+                else -> list.take(8).forEach { item(it) }
             }
         }
     }
 
     @Composable
-    private fun EventRow(e: Event) {
+    private fun EventRow(e: Event, withDate: Boolean = false) {
         val th = LocalTh.current
         val z = Cfg.zone
         val start = Instant.ofEpochMilli(e.start).atZone(z)
@@ -910,9 +1224,10 @@ class MainActivity : ComponentActivity() {
             today.plusDays(1) -> "Tmrw "
             else -> start.format(DateTimeFormatter.ofPattern("EEE ", UK))
         }
-        val time = if (e.allDay) day.ifEmpty { "Today " } + "all day" else day + Fmt.time(start)
+        val time = if (withDate) Fmt.dayMonth(start.toLocalDate()) + " · " + start.format(DateTimeFormatter.ofPattern("EEE", UK))
+            else if (e.allDay) day.ifEmpty { "Today " } + "all day" else day + Fmt.time(start)
         Row(Modifier.fillMaxWidth().clickable { openEvent(e.id) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            T(time.trim(), 12.sp, th.muted, modifier = Modifier.width(96.dp), maxLines = 1, weight = FontWeight.Medium, caps = true)
+            T(time.trim(), 12.sp, th.muted, modifier = Modifier.width(if (withDate) 110.dp else 96.dp), maxLines = 1, weight = FontWeight.Medium, caps = true)
             T(e.title, 15.sp, th.fg, modifier = Modifier.weight(1f), maxLines = 1, weight = FontWeight.Medium)
         }
     }

@@ -47,7 +47,7 @@ object Links {
 
     val LIFE_PAGES = listOf("Apartment" to n("31d4afc93b0080d09181e30de2acf638"), "Finances" to n("a2c45a544a724dd69cdafdf8eb48697d"),
         "Travel" to n("99e37ebcb21a4a55a229d5e2e7e74bfc"), "Healthcare" to n("3bd6e2d57eb545d3ab6d821b2d5d1bbd"),
-        "Notes" to n("8d4d76b6f1074cfc9f41290fda56c842"))
+        "Archive" to n("595c786542d74f239295aebce0022e22"))
     val HEALTH_PAGES = listOf("Fitness" to n("835ca4fa122e41ef9956d58451935cb1"), "Habits" to n("7ce78dd4e707420c846c9be153232c34"))
     val CAREER_PAGES = listOf("CIMA" to n("697d8747766a419c83a05a500c5d2dbf"), "Portfolios" to n("926465794aad4a5197de71eb21e5f8f8"),
         "Goals" to n("8e5b030f904e4b8ab1cda6d8974719cf"), "Be Greater" to n("d06bec76307649c287d8db606ea4f487"))
@@ -78,6 +78,8 @@ private fun http(url: String, method: String = "GET", headers: Map<String, Strin
     if (code !in 200..299) throw IOException("HTTP $code ${txt.take(160)}")
     return txt
 }
+
+data class Block(val kind: String, val text: String, val url: String, val checked: Boolean)
 
 object NotionSrc {
     private const val TASKS_DS = "b9b6a15d-50d6-46bd-901b-0b332aba7157"
@@ -115,6 +117,31 @@ object NotionSrc {
             } ?: ""
             else -> ""
         }
+    }
+
+    /** Contents of a Notion page as simple blocks, for the sub-page views. Nested blocks are not expanded. */
+    fun page(token: String, id: String): List<Block> {
+        val r = call(token, "GET", "blocks/${id.replace("-", "")}/children?page_size=100")
+        val res = r.getJSONArray("results")
+        val out = mutableListOf<Block>()
+        for (i in 0 until res.length()) {
+            val b = res.getJSONObject(i)
+            val t = b.optString("type")
+            val o = b.optJSONObject(t)
+            when (t) {
+                "child_page" -> out += Block("page", o?.optString("title") ?: "", Links.n(b.optString("id")), false)
+                "child_database" -> out += Block("page", o?.optString("title") ?: "", Links.n(b.optString("id")), false)
+                "heading_1", "heading_2", "heading_3" -> joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block("h", it, "", false) }
+                "to_do" -> joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block("todo", it, "", o?.optBoolean("checked") == true) }
+                "paragraph", "callout", "quote", "bulleted_list_item", "numbered_list_item" ->
+                    joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block(if (t.endsWith("list_item")) "li" else "p", it, "", false) }
+                "link_to_page" -> {
+                    val pid = o?.optString("page_id") ?: ""
+                    if (pid.isNotEmpty()) out += Block("page", "Linked page", Links.n(pid), false)
+                }
+            }
+        }
+        return out
     }
 
     fun tasks(token: String): List<Task> {
@@ -184,7 +211,8 @@ object CalendarSrc {
         if (!granted(c)) throw SecurityException("Calendar access not granted")
         val zone = ZoneId.systemDefault()
         val start = LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = start + Duration.ofDays(3).toMillis()
+        val end = start + Duration.ofDays(36).toMillis()
+        val timedLimit = start + Duration.ofDays(3).toMillis()
         val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
             ContentUris.appendId(it, start); ContentUris.appendId(it, end)
         }.build()
@@ -204,10 +232,11 @@ object CalendarSrc {
                     b -= off; e -= off
                 }
                 if (e <= now) continue
+                if (!allDay && b >= timedLimit) continue
                 out += Event(cur.getLong(0), cur.getString(1) ?: "(no title)", b, e, allDay)
             }
         }
-        return out.take(10)
+        return out.take(80)
     }
 }
 

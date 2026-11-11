@@ -58,7 +58,7 @@ object Diag {
 
     fun clear(c: Context) {
         val e = sp(c).edit().remove("diag").remove("errlog").remove("snap")
-        sp(c).all.keys.filter { it.startsWith("n_") }.forEach { e.remove(it) }
+        sp(c).all.keys.filter { it.startsWith("n_") || it.startsWith("pg_") }.forEach { e.remove(it) }
         e.apply()
     }
 }

@@ -25,19 +25,19 @@ import kotlin.reflect.KClass
 
 /** When each measurement was actually recorded, plus protein and fibre. Read-only extras: the original Health read is unchanged. */
 data class HealthExtra(
-    val proteinG: Double?, val fibreG: Double?,
+    val proteinG: Double?, val fibreG: Double?, val carbsG: Double? = null, val fatG: Double? = null,
     val stepsAt: Long?, val sleepEnd: Long?, val rhrAt: Long?, val weightAt: Long?, val nutritionAt: Long?,
     val weighIns7: Int,
 ) {
     fun toJson() = JSONObject().apply {
-        put("p", proteinG ?: JSONObject.NULL); put("f", fibreG ?: JSONObject.NULL)
+        put("p", proteinG ?: JSONObject.NULL); put("f", fibreG ?: JSONObject.NULL); put("c", carbsG ?: JSONObject.NULL); put("fa", fatG ?: JSONObject.NULL)
         put("st", stepsAt ?: JSONObject.NULL); put("sl", sleepEnd ?: JSONObject.NULL); put("r", rhrAt ?: JSONObject.NULL)
         put("w", weightAt ?: JSONObject.NULL); put("n", nutritionAt ?: JSONObject.NULL); put("wi", weighIns7)
     }
     companion object {
         private fun JSONObject.d(k: String): Double? = if (has(k) && !isNull(k)) getDouble(k) else null
         private fun JSONObject.l(k: String): Long? = if (has(k) && !isNull(k)) getLong(k) else null
-        fun from(o: JSONObject) = HealthExtra(o.d("p"), o.d("f"), o.l("st"), o.l("sl"), o.l("r"), o.l("w"), o.l("n"), o.optInt("wi"))
+        fun from(o: JSONObject) = HealthExtra(o.d("p"), o.d("f"), o.d("c"), o.d("fa"), o.l("st"), o.l("sl"), o.l("r"), o.l("w"), o.l("n"), o.optInt("wi"))
     }
 }
 
@@ -85,10 +85,14 @@ object HealthExtraSrc {
         val now = Instant.now()
         var protein: Double? = null
         var fibre: Double? = null
+        var carbs: Double? = null
+        var fat: Double? = null
         if (has(g, NutritionRecord::class)) {
-            val a = hc.aggregate(AggregateRequest(setOf(NutritionRecord.PROTEIN_TOTAL, NutritionRecord.DIETARY_FIBER_TOTAL), TimeRangeFilter.between(dayStart, now)))
+            val a = hc.aggregate(AggregateRequest(setOf(NutritionRecord.PROTEIN_TOTAL, NutritionRecord.DIETARY_FIBER_TOTAL, NutritionRecord.TOTAL_CARBOHYDRATE_TOTAL, NutritionRecord.TOTAL_FAT_TOTAL), TimeRangeFilter.between(dayStart, now)))
             protein = a[NutritionRecord.PROTEIN_TOTAL]?.inGrams
             fibre = a[NutritionRecord.DIETARY_FIBER_TOTAL]?.inGrams
+            carbs = a[NutritionRecord.TOTAL_CARBOHYDRATE_TOTAL]?.inGrams
+            fat = a[NutritionRecord.TOTAL_FAT_TOTAL]?.inGrams
         }
         suspend fun <T : Record> latest(k: KClass<T>, days: Long): T? =
             if (!has(g, k)) null else hc.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(now.minus(Duration.ofDays(days)), now),
@@ -96,7 +100,7 @@ object HealthExtraSrc {
         val weighIns = if (has(g, WeightRecord::class)) hc.readRecords(ReadRecordsRequest(WeightRecord::class,
             TimeRangeFilter.between(now.minus(Duration.ofDays(7)), now), pageSize = 200)).records.size else 0
         return HealthExtra(
-            protein, fibre,
+            protein, fibre, carbs, fat,
             latest(StepsRecord::class, 3)?.endTime?.toEpochMilli(),
             latest(SleepSessionRecord::class, 3)?.endTime?.toEpochMilli(),
             latest(RestingHeartRateRecord::class, 7)?.time?.toEpochMilli(),

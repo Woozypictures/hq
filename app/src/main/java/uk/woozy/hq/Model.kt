@@ -36,6 +36,12 @@ object Store {
     fun setDob(c: Context, d: String) = prefs(c).edit().putString("dob", d.trim()).apply()
     /** Step target now lives in Settings. 0 (not set) falls back to 10,000 for the widget bar. */
     fun stepGoal(c: Context): Int = Cfg.get(c).stepsTarget.let { if (it <= 0) 10000 else it }
+    fun pageCache(c: Context, id: String): List<Block>? = try {
+        prefs(c).getString("pg_$id", null)?.let { raw -> JSONArray(raw).let { a -> (0 until a.length()).map { i -> a.getJSONObject(i).let { o ->
+            Block(o.optString("k"), o.optString("t"), o.optString("u"), o.optBoolean("c")) } } } }
+    } catch (_: Exception) { null }
+    fun savePage(c: Context, id: String, l: List<Block>) = prefs(c).edit().putString("pg_$id",
+        JSONArray(l.map { JSONObject().put("k", it.kind).put("t", it.text).put("u", it.url).put("c", it.checked) }).toString()).apply()
     fun asked(c: Context): Boolean = prefs(c).getBoolean("asked", false)
     fun setAsked(c: Context) = prefs(c).edit().putBoolean("asked", true).apply()
 

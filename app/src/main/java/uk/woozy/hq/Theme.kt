@@ -142,3 +142,18 @@ internal val THEME_NAMES: List<Pair<String, String>> = listOf("hq" to "Natural (
     "colourful" to "Colourful", "standard" to "Standard", "calm" to "Calm", "seventies" to "Seventies", "japandi" to "Japandi", "riviera" to "Riviera", "editorial" to "Editorial", "notebook" to "Notebook", "riso" to "Riso", "solarpunk" to "Solarpunk", "bauhaus" to "Bauhaus", "chrome" to "Chrome", "digital" to "Digital", "noir" to "Noir", "athletic" to "Athletic", "arcade" to "Arcade"
 )
 internal fun themeFor(id: String): Th = when (id) { "hq" -> HQ; "frosted" -> FROSTED; else -> EXTRA_THEMES[id] ?: HQ }
+
+/** Dark version of any light colour scheme: same accents (lightened), dark surfaces. */
+internal fun darkOf(t: Th): Th {
+    val bg = lerp(Color(0xFF0F1013), t.bg, 0.06f)
+    return Th(
+        dark = true, glass = false, bg = bg, panel = lerp(bg, Color.White, 0.08f), fg = Color(0xFFEDEDED), muted = Color(0xFFA9A9AF),
+        hair = Color(0x1FFFFFFF), ok = lerp(t.ok, Color.White, 0.35f), warn = lerp(t.warn, Color.White, 0.3f), amber = lerp(t.amber, Color.White, 0.3f),
+        tab = t.tab.map { lerp(it, Color.White, 0.4f) }, onTab = bg,
+    )
+}
+
+internal fun resolveTheme(id: String, appearance: String, systemDark: Boolean): Th {
+    val base = themeFor(id)
+    return if (!base.dark && (appearance == "dark" || (appearance == "system" && systemDark))) darkOf(base) else base
+}

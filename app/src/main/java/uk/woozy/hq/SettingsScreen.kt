@@ -25,6 +25,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.SolidColor as SC
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +53,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private val HANDLE: ImageVector = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+    .addPath(pathData = addPathNodes("M3,15h18v-2L3,13v2zM3,19h18v-2L3,17v2zM3,11h18L21,9L3,9v2zM3,5v2h18L21,5L3,5z"), fill = SC(Color.Black)).build()
 
 class SettingsActions(
     val saveToken: (String) -> Unit,
@@ -161,7 +176,8 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Section("general", "General") {
-                Opts("Theme", THEME_NAMES, s.theme) { onChange(s.copy(theme = it)) }
+                Opts("Appearance", listOf("system" to "Match phone", "light" to "Light", "dark" to "Dark"), s.appearance) { onChange(s.copy(appearance = it)) }
+                Opts("Colour scheme", THEME_NAMES, s.theme) { onChange(s.copy(theme = it)) }
                 Opts("Temperature", listOf("C" to "Celsius", "F" to "Fahrenheit"), s.tempUnit) { onChange(s.copy(tempUnit = it)) }
                 Opts("Weight", listOf("kg" to "kg", "lb" to "lb", "st" to "st + lb"), s.weightUnit) { onChange(s.copy(weightUnit = it)) }
                 Opts("Distance (saved for later)", listOf("km" to "km", "mi" to "miles"), s.distanceUnit) { onChange(s.copy(distanceUnit = it)) }
@@ -177,10 +193,12 @@ fun SettingsScreen(
                 NumField("Sleep", s.sleepTargetMin / 60, "hours", "Whole hours") { onChange(s.copy(sleepTargetMin = it * 60)) }
                 NumField("Calories", s.caloriesTarget, "kcal") { onChange(s.copy(caloriesTarget = it)) }
                 NumField("Protein", s.proteinTarget, "g") { onChange(s.copy(proteinTarget = it)) }
+                NumField("Net carbs", s.carbsTarget, "g") { onChange(s.copy(carbsTarget = it)) }
+                NumField("Fat", s.fatTarget, "g") { onChange(s.copy(fatTarget = it)) }
                 NumField("Fibre", s.fibreTarget, "g") { onChange(s.copy(fibreTarget = it)) }
                 NumField("Water", s.waterTargetMl, "ml", "Saved only. HQ doesn't read water yet") { onChange(s.copy(waterTargetMl = it)) }
                 NumField("Weigh-ins per week", s.weighInsPerWeek, "") { onChange(s.copy(weighInsPerWeek = it)) }
-                T("Leave a target empty and HQ shows the measurement without a target. Figures are for tracking only, not medical advice.", 12.sp, th.muted)
+                T("Health Connect and Cronometer don't share targets, so these are set here (calories, protein, carbs and fat start from your Cronometer targets). Leave one empty and HQ shows the measurement without a target. For tracking only, not medical advice.", 12.sp, th.muted)
                 Spacer(Modifier.height(8.dp))
                 T("Health cards to show", 13.sp, th.muted, weight = FontWeight.Medium)
                 HEALTH_CARDS.forEach { k ->
@@ -191,20 +209,56 @@ fun SettingsScreen(
             }
 
             Section("dashboard", "Home cards") {
-                s.homeOrder.forEachIndexed { i, k ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { T(HOME_NAMES[k] ?: k, 15.sp, th.fg, weight = FontWeight.Medium) }
-                        Chip("Up", false) { if (i > 0) onChange(s.copy(homeOrder = s.homeOrder.toMutableList().also { it.add(i - 1, it.removeAt(i)) })) }
-                        Spacer(Modifier.width(6.dp))
-                        Chip("Down", false) { if (i < s.homeOrder.lastIndex) onChange(s.copy(homeOrder = s.homeOrder.toMutableList().also { it.add(i + 1, it.removeAt(i)) })) }
-                        Spacer(Modifier.width(8.dp))
+                T("Hold the handle and drag to reorder.", 12.sp, th.muted)
+                val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr") }
+                val cur by rememberUpdatedState(s)
+                val change by rememberUpdatedState(onChange)
+                var dragKey by remember { mutableStateOf<String?>(null) }
+                var off by remember { mutableStateOf(0f) }
+                val rowH = with(LocalDensity.current) { 56.dp.toPx() }
+                keys.forEach { k ->
+                    val dragging = dragKey == k
+                    Row(
+                        Modifier.fillMaxWidth().height(56.dp).graphicsLayer { if (dragging) { translationY = off; shadowElevation = 16f } }.zIndex(if (dragging) 1f else 0f)
+                            .background(if (dragging) th.panel else Color.Transparent),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(HANDLE, contentDescription = "Drag", tint = th.muted,
+                            modifier = Modifier.size(40.dp).padding(8.dp).pointerInput(k) {
+                                detectDragGestures(
+                                    onDragStart = { dragKey = k; off = 0f },
+                                    onDragEnd = { dragKey = null; off = 0f },
+                                    onDragCancel = { dragKey = null; off = 0f },
+                                ) { ch, d ->
+                                    ch.consume()
+                                    off += d.y
+                                    val order = cur.homeOrder
+                                    val vis = order.filter { it !in listOf("steps", "sleep", "rhr") }
+                                    val i = vis.indexOf(k)
+                                    val other = when { off > rowH / 2 && i < vis.lastIndex -> vis[i + 1]; off < -rowH / 2 && i > 0 -> vis[i - 1]; else -> null }
+                                    if (other != null) {
+                                        val n = order.toMutableList()
+                                        n.removeAt(n.indexOf(k)); n.add(n.indexOf(other).let { if (off > 0) it + 1 else it }, k)
+                                        change(cur.copy(homeOrder = n))
+                                        off += if (off > 0) -rowH else rowH
+                                    }
+                                }
+                            })
+                        T(HOME_NAMES[k] ?: k, 15.sp, th.fg, Modifier.weight(1f).padding(start = 4.dp), weight = FontWeight.Medium)
                         Switch(
                             checked = k !in s.homeHidden, onCheckedChange = { on -> onChange(s.copy(homeHidden = if (on) s.homeHidden - k else s.homeHidden + k)) },
                             colors = SwitchDefaults.colors(checkedTrackColor = if (th.glass) Color(0x99FFFFFF) else th.tab[0], checkedThumbColor = if (th.glass) Color(0xFF2E2E2E) else Color.White),
                         )
                     }
                 }
-                Btn("Reset order") { onChange(s.copy(homeOrder = HOME_CARDS, homeHidden = emptySet())) }
+                Spacer(Modifier.height(8.dp))
+                T("Steps, sleep and heart rate", 13.sp, th.muted, weight = FontWeight.Medium)
+                T("Small cards share one row. Switch one to wide for a full-width card (you can also do this from Home by long-pressing).", 12.sp, th.muted)
+                listOf("steps" to "Steps", "sleep" to "Sleep", "rhr" to "Heart rate").forEach { (k, name) ->
+                    Toggle("Show $name", null, k !in s.homeHidden) { on -> onChange(s.copy(homeHidden = if (on) s.homeHidden - k else s.homeHidden + k)) }
+                    Toggle("$name as wide card", null, k in s.homeWide) { on -> onChange(s.copy(homeWide = if (on) s.homeWide + k else s.homeWide - k)) }
+                }
+                Btn("Reset order") { onChange(s.copy(homeOrder = HOME_CARDS, homeHidden = emptySet(), homeWide = emptySet())) }
             }
 
             Section("refresh", "Refresh") {

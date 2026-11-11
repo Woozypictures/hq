@@ -11,9 +11,10 @@ import java.time.temporal.TemporalAccessor
 import java.util.Locale
 import kotlin.math.roundToInt
 
-val HOME_CARDS = listOf("tasks", "steps", "sleep", "rhr", "events", "countdowns", "feed", "weather")
+val HOME_CARDS = listOf("tasks", "vitals", "calories", "events", "countdowns", "feed", "weather", "steps", "sleep", "rhr")
 val HOME_NAMES = mapOf(
-    "tasks" to "Priority tasks", "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate",
+    "tasks" to "Priority tasks", "vitals" to "Steps, sleep and heart rate (small cards)", "calories" to "Calories and macros",
+    "steps" to "Steps (wide card)", "sleep" to "Sleep (wide card)", "rhr" to "Resting heart rate (wide card)",
     "events" to "Upcoming events", "countdowns" to "Countdowns", "feed" to "HQ Feed", "weather" to "Weather",
 )
 val HEALTH_CARDS = listOf("steps", "sleep", "rhr", "weight", "nutrition", "activity", "weekly")
@@ -27,6 +28,8 @@ val INTERVALS = listOf(15, 30, 60, 120, 240, 360)
 /** Every user preference lives here. Targets of 0 mean "not set". */
 data class Settings(
     val theme: String = "hq",
+    val appearance: String = "system",
+    val homeWide: Set<String> = emptySet(),
     val tempUnit: String = "C",
     val distanceUnit: String = "km",
     val weightUnit: String = "kg",
@@ -37,8 +40,10 @@ data class Settings(
     val time24: Boolean = true,
     val stepsTarget: Int = 10000,
     val sleepTargetMin: Int = 480,
-    val caloriesTarget: Int = 0,
-    val proteinTarget: Int = 0,
+    val caloriesTarget: Int = 2297,
+    val proteinTarget: Int = 150,
+    val carbsTarget: Int = 260,
+    val fatTarget: Int = 70,
     val fibreTarget: Int = 0,
     val waterTargetMl: Int = 0,
     val weighInsPerWeek: Int = 0,
@@ -57,7 +62,7 @@ data class Settings(
     val nSources: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
-        put("theme", theme); put("tempUnit", tempUnit); put("distanceUnit", distanceUnit); put("weightUnit", weightUnit)
+        put("theme", theme); put("appearance", appearance); put("homeWide", JSONArray(homeWide.toList())); put("macroSeed", true); put("carbsTarget", carbsTarget); put("fatTarget", fatTarget); put("tempUnit", tempUnit); put("distanceUnit", distanceUnit); put("weightUnit", weightUnit)
         put("currency", currency); put("dateFormat", dateFormat); put("timezone", timezone); put("weekStart", weekStart)
         put("time24", time24); put("stepsTarget", stepsTarget); put("sleepTargetMin", sleepTargetMin)
         put("caloriesTarget", caloriesTarget); put("proteinTarget", proteinTarget); put("fibreTarget", fibreTarget)
@@ -77,10 +82,17 @@ data class Settings(
             fun int(k: String, d: Int, lo: Int, hi: Int) = if (o.has(k)) o.optInt(k, d).coerceIn(lo, hi) else d
             fun bool(k: String, d: Boolean) = if (o.has(k)) o.optBoolean(k, d) else d
             fun list(k: String): List<String>? = o.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } }
-            val order = list("homeOrder")?.filter { it in HOME_CARDS }?.distinct() ?: b.homeOrder
+            // Targets saved before the Cronometer defaults existed (still 0) are filled once with those defaults.
+            fun tgt(k: String, seed: Int, d: Int, hi: Int): Int =
+                if (!o.has(k)) d else o.optInt(k, d).coerceIn(0, hi).let { if (it == 0 && !o.optBoolean("macroSeed", false)) seed else it }
+            val saved = list("homeOrder")?.filter { it in HOME_CARDS }?.distinct()
+            val order = if (saved != null && "vitals" in saved) saved else b.homeOrder
             val tz = if (o.has("timezone")) o.optString("timezone") else b.timezone
             return Settings(
                 theme = str("theme", THEME_IDS, b.theme),
+                appearance = str("appearance", setOf("system", "light", "dark"), b.appearance),
+                homeWide = list("homeWide")?.filter { it in setOf("steps", "sleep", "rhr") }?.toSet() ?: b.homeWide,
+                carbsTarget = tgt("carbsTarget", 260, b.carbsTarget, 1000), fatTarget = tgt("fatTarget", 70, b.fatTarget, 500),
                 tempUnit = str("tempUnit", setOf("C", "F"), b.tempUnit),
                 distanceUnit = str("distanceUnit", setOf("km", "mi"), b.distanceUnit),
                 weightUnit = str("weightUnit", setOf("kg", "lb", "st"), b.weightUnit),
@@ -91,8 +103,8 @@ data class Settings(
                 time24 = bool("time24", b.time24),
                 stepsTarget = int("stepsTarget", b.stepsTarget, 0, 100000),
                 sleepTargetMin = int("sleepTargetMin", b.sleepTargetMin, 0, 960),
-                caloriesTarget = int("caloriesTarget", b.caloriesTarget, 0, 10000),
-                proteinTarget = int("proteinTarget", b.proteinTarget, 0, 1000),
+                caloriesTarget = tgt("caloriesTarget", 2297, b.caloriesTarget, 10000),
+                proteinTarget = tgt("proteinTarget", 150, b.proteinTarget, 1000),
                 fibreTarget = int("fibreTarget", b.fibreTarget, 0, 500),
                 waterTargetMl = int("waterTargetMl", b.waterTargetMl, 0, 20000),
                 weighInsPerWeek = int("weighInsPerWeek", b.weighInsPerWeek, 0, 21),
