@@ -110,3 +110,24 @@ Notion IDs used by the app (all in `Sources.kt`, object `Links`, `NotionSrc`):
 - Instagram: vidiq_instagram_connected_accounts is broken on vidIQ's side; the morning task now uses vidiq_social_account_list + vidiq_instagram_owner_insights (0 credits). Feed JSON gained youtube.handle.
 - Notion: Archive moved under LIFE; Notes page removed from the app; the Notes page itself still exists in Notion (trash denied by the tool, delete by hand).
 - Build: GitHub Actions run 11 succeeded. Not tested on a device.
+
+## 11. v0.8 and current state (11 Nov 2026) - READ THIS FIRST, it supersedes older sections where they differ
+- Latest build: GitHub Actions run 13 (v0.8, sha 04b2f30) succeeded. Install via Obtainium. Not verified on device by Claude.
+- v0.8 changes: edit/wiggle mode scrolls (cards move by a corner drag handle only; page scrolls normally); tabs and sub-page chips scroll sideways in one row; Portfolios moved from Career to Life; Healthcare renamed Personal care (app and Notion). Current sub-pages: Life = Apartment, Finances, Travel, Personal care, Portfolios, Archive; Health = Fitness, Habits; Career = CIMA, Goals, Be Greater; Create = Content, Music, Moodboard, Reading.
+- Task list area grouping (Flat, Life admin, Money etc) and lane grouping (Do now / Schedule / Park) both exist.
+- Instagram now flows via the morning task (vidiq_social_account_list + vidiq_instagram_owner_insights): woozypictures, 738 followers, 6 posts, 494 reach (30d).
+- Look and interaction rules Mahesh has asked for (reuse in the fitness app): cream HQ look default plus Frosted glass; 16 colour schemes (colours only, never layout); appearance match phone/light/dark; one font (Google Sans, tabular numerals); tab icons; 30-square progress bars; Cronometer-style nutrition (3 rings + macro bars); weekly chart with dashed target line and vs-last-week; pull to refresh with no refresh button or helper text; long-press wiggle rearrange on every tab with corner drag handle, per-tab order saved; small/wide toggle for vitals cards; settings drag-to-reorder with show switches; tap-through to the right app (Notion, Gmail, calendar event, weather, YouTube, Instagram, Samsung Health, Cronometer); problems banner only on failure; notifications off by default, max once a day; keep it simple, short replies, low maintenance.
+- Targets cannot be read from Health Connect or Cronometer, so they are Settings fields (calories 2297, protein 150, net carbs 260, fat 70, steps 10000, sleep 8h).
+
+### Merge with the Fitness HQ app (planned, new chat in this project)
+- Plan: Mahesh will start a new chat in the DASHBOARD project, give it this handover plus claude/hq-fit-handover.md, and update both apps together so they share look, settings, theme code and interactions. Decide there whether to keep two apps or fold Fitness in as a tab; Fitness replaces Everfit and Cronometer eventually.
+- Shared code worth extracting first: Theme.kt (themes, Google Sans), Settings/SettingsStore, Draggable/Rearrange, Header/Tabs, Status/Diag, Notifier, open*() link helpers.
+- Overlap to resolve: nutrition and Health Connect reads (HealthSrc, HealthExtra) should live in one place; Health tab Fitness/Habits sub-pages in HQ should link to or embed the fitness app.
+
+### Still open
+1. On-device checks: Notion and Gmail open in their apps; Samsung Health deep links (shealth://tracker.* are guesses); widget look; Health Connect carbs/fat; drag handle feel; background refresh timing.
+2. Notes page in Notion still exists (trash was denied): Mahesh to delete by hand.
+3. Deferred: desktop/bookmarkable version of HQ (saved in Notion T A S K S, Park lane). Plan: private artifact reading Notion/Calendar/Gmail live, phone app writing a health snapshot to Notion. Note the Notion API blocks browser CORS.
+4. vidIQ list-connected-accounts tool bug (vidIQ side, optional report). Old HQ artifact and Wix site to retire only when Mahesh says.
+5. Notion areas not yet reworked: CIMA, Finances, Fitness, Goals, Travel (Wanderlog), Habits.
+6. Unused settings: water reading, distance and currency. Sub-page rendering does not expand nested blocks.
