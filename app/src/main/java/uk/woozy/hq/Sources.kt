@@ -46,11 +46,10 @@ object Links {
     val TASKS = n("89e4f6a36ea9414ca8b4684774ec4284")
 
     val LIFE_PAGES = listOf("Apartment" to n("31d4afc93b0080d09181e30de2acf638"), "Finances" to n("a2c45a544a724dd69cdafdf8eb48697d"),
-        "Travel" to n("99e37ebcb21a4a55a229d5e2e7e74bfc"), "Healthcare" to n("3bd6e2d57eb545d3ab6d821b2d5d1bbd"),
-        "Archive" to n("595c786542d74f239295aebce0022e22"))
+        "Travel" to n("99e37ebcb21a4a55a229d5e2e7e74bfc"), "Personal care" to n("3bd6e2d57eb545d3ab6d821b2d5d1bbd"),
+        "Portfolios" to n("926465794aad4a5197de71eb21e5f8f8"), "Archive" to n("595c786542d74f239295aebce0022e22"))
     val HEALTH_PAGES = listOf("Fitness" to n("835ca4fa122e41ef9956d58451935cb1"), "Habits" to n("7ce78dd4e707420c846c9be153232c34"))
-    val CAREER_PAGES = listOf("CIMA" to n("697d8747766a419c83a05a500c5d2dbf"), "Portfolios" to n("926465794aad4a5197de71eb21e5f8f8"),
-        "Goals" to n("8e5b030f904e4b8ab1cda6d8974719cf"), "Be Greater" to n("d06bec76307649c287d8db606ea4f487"))
+    val CAREER_PAGES = listOf("CIMA" to n("697d8747766a419c83a05a500c5d2dbf"), "Goals" to n("8e5b030f904e4b8ab1cda6d8974719cf"), "Be Greater" to n("d06bec76307649c287d8db606ea4f487"))
     val CREATE_PAGES = listOf("Content" to n("e5fc16e75b32433d995b3c9524d84c3c"), "Music" to n("7fecbd7641b04a1493871bfd467b73a4"),
         "Moodboard" to n("a715bad2ea2349fda7b72b7368f66726"), "Reading" to n("abb746c59e624c53adc15daeea7ebefe"))
 }

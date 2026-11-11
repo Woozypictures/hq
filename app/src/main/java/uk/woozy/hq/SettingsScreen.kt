@@ -54,7 +54,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val HANDLE: ImageVector = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+internal val HANDLE: ImageVector = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
     .addPath(pathData = addPathNodes("M3,15h18v-2L3,13v2zM3,19h18v-2L3,17v2zM3,11h18L21,9L3,9v2zM3,5v2h18L21,5L3,5z"), fill = SC(Color.Black)).build()
 
 class SettingsActions(

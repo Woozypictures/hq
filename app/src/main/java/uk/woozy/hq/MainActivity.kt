@@ -22,6 +22,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -355,7 +356,7 @@ class MainActivity : ComponentActivity() {
             @OptIn(ExperimentalMaterial3Api::class)
             PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
-                Modifier.fillMaxSize().verticalScroll(scroll, enabled = !homeEditing).navigationBarsPadding()
+                Modifier.fillMaxSize().verticalScroll(scroll).navigationBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -390,15 +391,15 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Tabs(selected: Int, onSelect: (Int) -> Unit) {
         val th = LocalTh.current
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             TAB_NAMES.forEachIndexed { i, name ->
                 val tc = th.tab[i]
                 val on = i == selected
                 val bg = when { on -> tc; th.glass -> Color(0x14FFFFFF); else -> lerp(th.panel, tc, 0.13f) }
                 val fg = when { on -> th.onTab; th.glass -> th.muted; else -> lerp(th.fg, tc, 0.75f) }
                 Box(
-                    Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(50)).background(bg)
-                        .clickable { onSelect(i) }.padding(horizontal = 4.dp, vertical = 9.dp),
+                    Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(50)).background(bg)
+                        .clickable { onSelect(i) }.padding(horizontal = 14.dp, vertical = 9.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -452,7 +453,7 @@ class MainActivity : ComponentActivity() {
         ) {
             content()
             if (editing) Box(
-                Modifier.matchParentSize().pointerInput(key) {
+                Modifier.align(Alignment.TopEnd).padding(8.dp).size(44.dp).clip(RoundedCornerShape(50)).background(LocalTh.current.panel.copy(alpha = 0.92f)).pointerInput(key) {
                     detectDragGestures(
                         onDragStart = { draggingKey = key; dragOffset = 0f },
                         onDragEnd = { draggingKey = null; dragOffset = 0f },
@@ -479,7 +480,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 },
-            )
+                contentAlignment = Alignment.Center,
+            ) { Icon(HANDLE, contentDescription = "Drag to move", tint = LocalTh.current.fg, modifier = Modifier.size(22.dp)) }
         }
     }
 
@@ -501,7 +503,7 @@ class MainActivity : ComponentActivity() {
     private fun Rearrange(tab: String, def: List<String>, hidden: Set<String> = emptySet(), extra: @Composable (String) -> Unit = {}, render: @Composable (String) -> Unit) {
         val th = LocalTh.current
         val vis = orderOf(tab, def).filter { it !in hidden }
-        if (homeEditing) T("Drag a card up or down. Tap Done when finished.", 12.sp, th.muted)
+        if (homeEditing) T("Drag the handle on a card to move it. Scroll as normal. Tap Done when finished.", 12.sp, th.muted)
         vis.forEach { k ->
             androidx.compose.runtime.key(k) {
                 Draggable(tab, def, k, vis) { render(k) }
@@ -535,8 +537,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SubNav(tc: Color, pages: List<Pair<String, String>>, sel: String, pick: (String) -> Unit) {
         val th = LocalTh.current
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             (listOf("" to "Overview") + pages.map { it.first to it.first }).forEach { (k, label) ->
                 val on = sel == k
                 Box(Modifier.clip(RoundedCornerShape(50))
