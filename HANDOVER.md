@@ -131,3 +131,16 @@ Notion IDs used by the app (all in `Sources.kt`, object `Links`, `NotionSrc`):
 4. vidIQ list-connected-accounts tool bug (vidIQ side, optional report). Old HQ artifact and Wix site to retire only when Mahesh says.
 5. Notion areas not yet reworked: CIMA, Finances, Fitness, Goals, Travel (Wanderlog), Habits.
 6. Unused settings: water reading, distance and currency. Sub-page rendering does not expand nested blocks.
+
+## 12. 11 Nov 2026 (evening): HQ Fit link, audit, tablet, About (runs 16-19)
+
+- HQ reads HQ Fit's provider (`FitSrc` in Sources.kt, source "HQ Fit" in diagnostics). Today's kcal, macros and weight come from HQ Fit when it answers (`FitSrc.overlay`), so nothing is counted twice; targets and the step goal follow HQ Fit (HQ settings are the fallback). Health tab card "HQ Fit": today's workout, week count, water, Sunday check-in ticks; tap opens HQ Fit. Details: `claude/hq-fit-link.md`.
+- HQ declares `uk.woozy.fit.permission.READ_SUMMARY` itself as well as using it (same key), so the install order of the two apps no longer matters.
+- No activity restart on rotation or resizing (`configChanges`).
+- Long press no longer also taps the button under the finger.
+- Tablet: at 840 dp and wider, card tabs show two columns (one while rearranging); pages capped at 1280 dp, Notion sub-pages and Settings at 760 dp, centred.
+- Settings > About (always open): Created by Woozypictures, App version, Instagram / YouTube / X.
+- Debug-only demo data (`app/src/debug/.../Demo.kt`, `--ez demo true`) and `.github/workflows/screens.yml` + `ci/screens.sh`: push any commit to branch `screens` to get emulator screenshots of HQ and HQ Fit (phone, Tab S9 Ultra landscape, dark, portrait) on branch `screens-out`.
+- Data map artifact: https://claude.ai/artifact/6GuK6qLaVPev8rKdncMtBt
+- Branches `iconpack-ci` and `iconpack-out` in this repo were temporary (icon pack 2.3 compile check); they now hold only a note. Delete them on GitHub (the session proxy cannot delete branches).
+- Icon pack 2.3 (source ZIP given to Mahesh): icons for HQ and HQ Fit, About panel with the links, tablet grid. Must be signed with the Woozypictures release keystore (alias woozypictures-release) using BUILD_APK_WINDOWS.ps1; Claude never has that key.
