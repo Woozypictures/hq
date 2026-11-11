@@ -17,10 +17,10 @@ val HOME_NAMES = mapOf(
     "steps" to "Steps (wide card)", "sleep" to "Sleep (wide card)", "rhr" to "Resting heart rate (wide card)",
     "events" to "Upcoming events", "countdowns" to "Countdowns", "feed" to "HQ Feed", "weather" to "Weather",
 )
-val HEALTH_CARDS = listOf("steps", "sleep", "rhr", "weight", "nutrition", "activity", "weekly")
+val HEALTH_CARDS = listOf("steps", "sleep", "rhr", "weight", "nutrition", "fitness", "activity", "weekly")
 val HEALTH_NAMES = mapOf(
     "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate", "weight" to "Weight",
-    "nutrition" to "Nutrition", "activity" to "Calories burned", "weekly" to "Weekly overview",
+    "nutrition" to "Nutrition", "fitness" to "HQ Fit (workout and check-in)", "activity" to "Calories burned", "weekly" to "Weekly overview",
 )
 val THEME_IDS = setOf("hq", "frosted", "colourful", "standard", "calm", "seventies", "japandi", "riviera", "editorial", "notebook", "riso", "solarpunk", "bauhaus", "chrome", "digital", "noir", "athletic", "arcade")
 val INTERVALS = listOf(15, 30, 60, 120, 240, 360)

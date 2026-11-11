@@ -11,6 +11,32 @@ data class Health(
     val steps: Long?, val sleepMin: Long?, val restingHr: Long?,
     val activeKcal: Double?, val totalKcal: Double?, val eatenKcal: Double?, val weightKg: Double?,
 )
+/** Read-only summary from HQ Fit (uk.woozy.fit). Null fields mean the provider had no value. */
+data class FitSummary(
+    val date: String, val kcal: Double?, val proteinG: Double?, val netCarbsG: Double?, val fatG: Double?, val waterMl: Double?,
+    val kcalTarget: Double?, val proteinTarget: Double?, val netCarbsTarget: Double?, val fatTarget: Double?,
+    val weightKg: Double?, val weightAt: Long?,
+    val workoutToday: String?, val workoutDone: Boolean, val doneWeek: Int?, val plannedWeek: Int?,
+    val checkinDate: String?, val checkinMood: String?, val checkinMetrics: String?, val checkinPhoto: String?,
+    val readAt: Long,
+) {
+    fun toJson() = JSONObject().apply {
+        fun p(k: String, v: Any?) = put(k, v ?: JSONObject.NULL)
+        p("date", date); p("kcal", kcal); p("p", proteinG); p("c", netCarbsG); p("f", fatG); p("w", waterMl)
+        p("kt", kcalTarget); p("pt", proteinTarget); p("ct", netCarbsTarget); p("ft", fatTarget)
+        p("kg", weightKg); p("kga", weightAt); p("wo", workoutToday); put("wd", workoutDone); p("dw", doneWeek); p("pw", plannedWeek)
+        p("cd", checkinDate); p("cm", checkinMood); p("cx", checkinMetrics); p("cp", checkinPhoto); put("at", readAt)
+    }
+    companion object {
+        private fun JSONObject.d(k: String): Double? = if (has(k) && !isNull(k)) getDouble(k) else null
+        private fun JSONObject.l(k: String): Long? = if (has(k) && !isNull(k)) getLong(k) else null
+        private fun JSONObject.i(k: String): Int? = if (has(k) && !isNull(k)) getInt(k) else null
+        private fun JSONObject.s(k: String): String? = if (has(k) && !isNull(k)) getString(k) else null
+        fun from(o: JSONObject) = FitSummary(o.optString("date"), o.d("kcal"), o.d("p"), o.d("c"), o.d("f"), o.d("w"),
+            o.d("kt"), o.d("pt"), o.d("ct"), o.d("ft"), o.d("kg"), o.l("kga"), o.s("wo"), o.optBoolean("wd"), o.i("dw"), o.i("pw"),
+            o.s("cd"), o.s("cm"), o.s("cx"), o.s("cp"), o.optLong("at"))
+    }
+}
 data class Weather(val temp: Double, val code: Int, val hi: Double, val lo: Double, val rain: Int)
 
 /** Everything the app and widget show. Any section can be null if its source failed and has never worked. */
@@ -24,6 +50,7 @@ data class Snapshot(
     val feed: JSONObject? = null,
     val healthX: HealthExtra? = null,
     val history: HealthHistory? = null,
+    val fit: FitSummary? = null,
     val errors: List<String> = emptyList(),
 )
 
@@ -79,6 +106,7 @@ object Store {
         s.feed?.let { put("feed", it) }
         s.healthX?.let { put("healthX", it.toJson()) }
         s.history?.let { put("history", it.toJson()) }
+        s.fit?.let { put("fit", it.toJson()) }
         put("errors", JSONArray(s.errors))
     }
 
@@ -103,6 +131,7 @@ object Store {
         feed = o.optJSONObject("feed"),
         healthX = o.optJSONObject("healthX")?.let { HealthExtra.from(it) },
         history = o.optJSONObject("history")?.let { HealthHistory.from(it) },
+        fit = o.optJSONObject("fit")?.let { FitSummary.from(it) },
         errors = o.optJSONArray("errors")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
     )
 }

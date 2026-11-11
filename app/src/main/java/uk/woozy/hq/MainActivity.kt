@@ -288,6 +288,10 @@ class MainActivity : ComponentActivity() {
         if (!go(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage(pkg))) go(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
+    private fun openFit() {
+        packageManager.getLaunchIntentForPackage("uk.woozy.fit")?.let { try { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {} }
+    }
+
     private fun openWeather() {
         fun go(i: Intent): Boolean = try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
         for (pkg in listOf("com.sec.android.daemonapp", "com.google.android.apps.weather")) {
@@ -670,6 +674,7 @@ class MainActivity : ComponentActivity() {
                 "rhr" -> RhrCard(s) { openShealth("heartrate") }
                 "weight" -> WeightCard(s)
                 "nutrition" -> EnergyCard(s, true)
+                "fitness" -> FitCard(s)
                 "activity" -> ActivityTiles(s)
                 "weekly" -> WeeklyCard(s)
                 else -> Section("Health tasks") { TasksPanel(s, tasksIn(s, "Health"), "No health tasks") }
@@ -940,6 +945,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Workout and weekly check-in from HQ Fit. Read-only: tick the check-in boxes in HQ Fit itself. */
+    @Composable
+    private fun FitCard(s: Snapshot) {
+        val th = LocalTh.current
+        val f = s.fit
+        HCard("HQ Fit", { openFit() }) {
+            if (f == null) {
+                T(if (FitSrc.installed(this@MainActivity)) "Waiting for HQ Fit data. Pull to refresh" else "HQ Fit is not installed", 14.sp, th.muted)
+                return@HCard
+            }
+            T(f.workoutToday?.let { if (f.workoutDone) "$it - done" else it } ?: "No workout planned today", 16.sp, th.fg, weight = FontWeight.SemiBold)
+            if (f.doneWeek != null && f.plannedWeek != null) T("This week: ${f.doneWeek} of ${f.plannedWeek} workouts", 12.sp, th.muted)
+            f.waterMl?.takeIf { it > 0 }?.let { T("Water today: ${nf.format(it.toLong())} ml", 12.sp, th.muted) }
+            Spacer(Modifier.height(6.dp))
+            if (f.checkinDate != null) {
+                val parts = listOfNotNull(f.checkinMood?.let { "mood $it" }, f.checkinMetrics?.let { "metrics $it" }, f.checkinPhoto?.let { "photo $it" })
+                T("Last check-in ${f.checkinDate}" + if (parts.isNotEmpty()) " · " + parts.joinToString(", ") else "", 12.sp, th.muted)
+            } else T("No check-in yet", 12.sp, th.muted)
+        }
+    }
+
     @Composable
     private fun Donut(pct: Float, color: Color, value: String, label: String) {
         val th = LocalTh.current
@@ -983,11 +1009,15 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val h = s.health
         val x = s.healthX
-        HCard(if (full) "Nutrition today" else "Calories", { openApp("com.cronometer.android", "https://cronometer.com") }) {
+        HCard(if (full) "Nutrition today" else "Calories", { if (s.fit != null) openFit() else openApp("com.cronometer.android", "https://cronometer.com") }) {
             if (h == null) { T(healthMissing(), 14.sp, th.muted); return@HCard }
             val eaten = h.eatenKcal?.takeIf { it > 0 }
             val burned = (h.totalKcal ?: h.activeKcal)?.takeIf { it > 0 }
-            val target = cfg.caloriesTarget
+            val ft = s.fit
+            val target = ft?.kcalTarget?.toInt()?.takeIf { it > 0 } ?: cfg.caloriesTarget
+            val proteinT = ft?.proteinTarget?.toInt()?.takeIf { it > 0 } ?: cfg.proteinTarget
+            val carbsT = ft?.netCarbsTarget?.toInt()?.takeIf { it > 0 } ?: cfg.carbsTarget
+            val fatT = ft?.fatTarget?.toInt()?.takeIf { it > 0 } ?: cfg.fatTarget
             val left = if (target > 0 && eaten != null) target - eaten else if (target > 0) target.toDouble() else null
             if (full) {
                 Spacer(Modifier.height(6.dp))
@@ -1005,11 +1035,11 @@ class MainActivity : ComponentActivity() {
                 if (left != null && eaten != null) T((if (left >= 0) nf.format(left.toLong()) + " left" else nf.format((-left).toLong()) + " over"), 12.sp, th.muted)
                 Spacer(Modifier.height(6.dp))
             }
-            MacroBar("Energy", eaten, cfg.caloriesTarget, "kcal", C_ENERGY)
-            MacroBar("Protein", x?.proteinG, cfg.proteinTarget, "g", C_PROTEIN)
+            MacroBar("Energy", eaten, target, "kcal", C_ENERGY)
+            MacroBar("Protein", x?.proteinG, proteinT, "g", C_PROTEIN)
             val net = if (x?.carbsG != null) (x.carbsG - (x.fibreG ?: 0.0)).coerceAtLeast(0.0) else null
-            MacroBar("Net carbs", net, cfg.carbsTarget, "g", C_CARBS)
-            MacroBar("Fat", x?.fatG, cfg.fatTarget, "g", C_FAT)
+            MacroBar("Net carbs", net, carbsT, "g", C_CARBS)
+            MacroBar("Fat", x?.fatG, fatT, "g", C_FAT)
             if (full && cfg.fibreTarget > 0) MacroBar("Fibre", x?.fibreG, cfg.fibreTarget, "g", C_PROTEIN)
             Spacer(Modifier.height(4.dp))
             Fresh(x?.nutritionAt)

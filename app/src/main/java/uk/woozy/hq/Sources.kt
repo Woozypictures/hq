@@ -300,6 +300,58 @@ object HealthSrc {
     }
 }
 
+/** Reads HQ Fit's signature-protected summary. Returns null when HQ Fit is not installed (not an error). */
+object FitSrc {
+    private const val PKG = "uk.woozy.fit"
+    private val URI = android.net.Uri.parse("content://uk.woozy.fit.summary/today")
+    private const val SUPPORTED_VERSION = 1
+
+    fun installed(c: Context): Boolean = try { c.packageManager.getPackageInfo(PKG, 0); true } catch (_: Exception) { false }
+
+    fun read(c: Context): FitSummary? {
+        if (!installed(c)) return null
+        val cur = try { c.contentResolver.query(URI, null, null, null, null) }
+        catch (e: SecurityException) { throw SecurityException("HQ Fit permission not granted. Reinstall HQ after HQ Fit") }
+            ?: throw IllegalStateException("HQ Fit did not answer")
+        cur.use { q ->
+            if (!q.moveToFirst()) throw IllegalStateException("HQ Fit data not available. Open HQ Fit once")
+            fun idx(n: String) = q.getColumnIndex(n).takeIf { it >= 0 && !q.isNull(it) }
+            fun str(n: String) = idx(n)?.let { q.getString(it) }?.takeIf { it.isNotBlank() }
+            fun dbl(n: String) = idx(n)?.let { i -> try { q.getDouble(i) } catch (_: Exception) { q.getString(i)?.toDoubleOrNull() } }
+            fun lng(n: String) = idx(n)?.let { i -> try { q.getLong(i) } catch (_: Exception) { q.getString(i)?.toLongOrNull() } }
+            val version = lng("version")?.toInt() ?: 0
+            if (version != SUPPORTED_VERSION) throw IllegalStateException("HQ Fit summary version $version is newer than HQ understands")
+            val workout = str("workout_today")
+            return FitSummary(
+                date = str("date") ?: "", kcal = dbl("kcal"), proteinG = dbl("protein_g"), netCarbsG = dbl("net_carbs_g"),
+                fatG = dbl("fat_g"), waterMl = dbl("water_ml"),
+                kcalTarget = dbl("kcal_target"), proteinTarget = dbl("protein_target_g"),
+                netCarbsTarget = dbl("net_carbs_target_g"), fatTarget = dbl("fat_target_g"),
+                weightKg = dbl("weight_kg"), weightAt = lng("weight_at_ms"),
+                workoutToday = workout?.takeIf { it != "0" && !it.equals("false", true) },
+                workoutDone = (lng("workout_today_done") ?: 0L) != 0L || str("workout_today_done").equals("true", true),
+                doneWeek = lng("workouts_done_week")?.toInt(), plannedWeek = lng("workouts_planned_week")?.toInt(),
+                checkinDate = str("checkin_date"), checkinMood = str("checkin_mood"),
+                checkinMetrics = str("checkin_metrics"), checkinPhoto = str("checkin_photo"),
+                readAt = System.currentTimeMillis(),
+            )
+        }
+    }
+
+    /** HQ Fit owns food, water and weight. Where it answered, its values replace Health Connect's so nothing is counted twice. */
+    fun overlay(h: Health?, x: HealthExtra?, f: FitSummary?): Pair<Health?, HealthExtra?> {
+        if (f == null || h == null) return h to x
+        val nh = h.copy(eatenKcal = f.kcal, weightKg = f.weightKg ?: h.weightKg)
+        val base = x ?: HealthExtra(null, null, null, null, null, null, null, null, null, 0)
+        val nx = base.copy(
+            proteinG = f.proteinG, carbsG = f.netCarbsG, fibreG = null, fatG = f.fatG,
+            nutritionAt = if ((f.kcal ?: 0.0) > 0) f.readAt else null,
+            weightAt = f.weightAt ?: base.weightAt,
+        )
+        return nh to nx
+    }
+}
+
 object Repo {
     /** Pulls every source in parallel. A failed source keeps its last good value (if retaining is on) and is logged. */
     suspend fun refresh(c: Context, manual: Boolean = false): Snapshot = withContext(Dispatchers.IO) {
@@ -328,11 +380,16 @@ object Repo {
             val events = async { runCatching { CalendarSrc.read(c) } }
             val health = async { runCatching { HealthSrc.read(c) } }
             val extra = async { runCatching { HealthExtraSrc.readExtra(c) } }
+            val fitR = async { runCatching { FitSrc.read(c) } }
             val stale = manual || System.currentTimeMillis() - (old.history?.at ?: 0) > 3 * 3_600_000L
             val history = async { if (stale) runCatching { HealthExtraSrc.readHistory(c) } else null }
 
             val hr = health.await()
+            val fit = track("HQ Fit", fitR.await(), old.fit)
             val hist = history.await()
+            val hVal = track("Health", hr, old.health)
+            val xVal = if (hr.isSuccess) track("Health details", extra.await(), old.healthX) else old.healthX
+            val (hOut, xOut) = FitSrc.overlay(hVal, xVal, fit)
             val s = Snapshot(
                 updated = System.currentTimeMillis(),
                 tasks = track("Notion tasks", tasks.await(), old.tasks),
@@ -340,8 +397,9 @@ object Repo {
                 feed = track("HQ Feed", feed.await(), old.feed),
                 weather = track("Weather", weather.await(), old.weather),
                 events = track("Calendar", events.await(), old.events),
-                health = track("Health", hr, old.health),
-                healthX = if (hr.isSuccess) track("Health details", extra.await(), old.healthX) else old.healthX,
+                health = hOut,
+                healthX = xOut,
+                fit = fit,
                 history = if (hist == null) old.history else track("Health history", hist, old.history),
                 errors = errors.toList(),
             )
