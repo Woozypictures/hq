@@ -1,0 +1,42 @@
+[
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/xml_hq_widget_info.xml.flat",
+        "source": "uk.woozy.hq.app-main-55:/xml/hq_widget_info.xml"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/font_googlesans_bold.ttf.flat",
+        "source": "uk.woozy.hq.app-main-55:/font/googlesans_bold.ttf"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/drawable_ic_stat.xml.flat",
+        "source": "uk.woozy.hq.app-main-55:/drawable/ic_stat.xml"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/layout_widget.xml.flat",
+        "source": "uk.woozy.hq.app-main-55:/layout/widget.xml"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/font_googlesans_medium.ttf.flat",
+        "source": "uk.woozy.hq.app-main-55:/font/googlesans_medium.ttf"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/font_productsans.ttf.flat",
+        "source": "uk.woozy.hq.app-main-55:/font/productsans.ttf"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/font_googlesans_regular.ttf.flat",
+        "source": "uk.woozy.hq.app-main-55:/font/googlesans_regular.ttf"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/drawable_ic_fg.xml.flat",
+        "source": "uk.woozy.hq.app-main-55:/drawable/ic_fg.xml"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "uk.woozy.hq.app-main-55:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "uk.woozy.hq.app-debug-53:/font_googlesans_semibold.ttf.flat",
+        "source": "uk.woozy.hq.app-main-55:/font/googlesans_semibold.ttf"
+    }
+]

@@ -1,0 +1,51 @@
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+      uk.woozy.fit.permission.READ_SUMMARY: prot=signature
+      uk.woozy.fit.permission.READ_SUMMARY
+      uk.woozy.fit.permission.READ_SUMMARY: granted=true
+== shot fit-phone-1-today
+== shot fit-phone-2-today-lower
+== tap Diary at 756 2287
+== shot fit-phone-3-diary
+== tap Train at 324 2287
+== shot fit-phone-4-train
+== tap Progress at 972 2287
+== shot fit-phone-5-progress
+== tap Today at 108 2287
+== tap Settings: not found
+== tap M: not found
+== shot fit-phone-6-settings-about
+== shot hq-phone-1-home
+== shot hq-phone-2-home-lower
+== tap Health at 582 414
+== shot hq-phone-3-health
+== shot hq-phone-4-health-lower
+== shot hq-phone-5-health-bottom
+== tap Settings at 941 194
+== shot hq-phone-6-settings-about
+== shot fit-tablet-1-today
+== shot fit-tablet-2-today-lower
+== tap Diary at 1752 1680
+== shot fit-tablet-3-diary
+== tap Train at 1208 1680
+== shot fit-tablet-4-train
+== tap Progress at 2024 1680
+== shot fit-tablet-5-progress
+== tap Today at 936 1680
+== tap Settings: not found
+== tap M at 2759 178
+== shot fit-tablet-6-settings-about
+== shot hq-tablet-1-home
+== shot hq-tablet-2-home-lower
+== tap Health at 469 332
+== shot hq-tablet-3-health
+== shot hq-tablet-4-health-lower
+== shot hq-tablet-5-health-bottom
+== tap Settings at 2849 153
+== shot hq-tablet-6-settings-about
+== shot fit-tablet-dark-today
+== shot hq-tablet-dark-home
+== shot hq-tablet-portrait-home
+== shot fit-tablet-portrait-today

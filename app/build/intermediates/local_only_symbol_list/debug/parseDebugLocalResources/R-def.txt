@@ -1,0 +1,17 @@
+R_DEF: Internal format may change without notice
+local
+color bg
+color icon_bg
+drawable ic_fg
+drawable ic_stat
+font googlesans_bold
+font googlesans_medium
+font googlesans_regular
+font googlesans_semibold
+font productsans
+id img
+id root
+layout widget
+mipmap ic_launcher
+style Theme.HQ
+xml hq_widget_info
