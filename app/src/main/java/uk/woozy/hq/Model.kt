@@ -17,15 +17,15 @@ data class FitSummary(
     val kcalTarget: Double?, val proteinTarget: Double?, val netCarbsTarget: Double?, val fatTarget: Double?,
     val weightKg: Double?, val weightAt: Long?,
     val workoutToday: String?, val workoutDone: Boolean, val doneWeek: Int?, val plannedWeek: Int?,
-    val checkinDate: String?, val checkinMood: String?, val checkinMetrics: String?, val checkinPhoto: String?,
-    val readAt: Long,
+    val checkinDate: String?, val checkinMood: Boolean, val checkinMetrics: Boolean, val checkinPhoto: Boolean,
+    val readAt: Long, val stepsTarget: Double? = null,
 ) {
     fun toJson() = JSONObject().apply {
         fun p(k: String, v: Any?) = put(k, v ?: JSONObject.NULL)
         p("date", date); p("kcal", kcal); p("p", proteinG); p("c", netCarbsG); p("f", fatG); p("w", waterMl)
         p("kt", kcalTarget); p("pt", proteinTarget); p("ct", netCarbsTarget); p("ft", fatTarget)
         p("kg", weightKg); p("kga", weightAt); p("wo", workoutToday); put("wd", workoutDone); p("dw", doneWeek); p("pw", plannedWeek)
-        p("cd", checkinDate); p("cm", checkinMood); p("cx", checkinMetrics); p("cp", checkinPhoto); put("at", readAt)
+        p("cd", checkinDate); put("cm", checkinMood); put("cx", checkinMetrics); put("cp", checkinPhoto); put("at", readAt); p("st", stepsTarget)
     }
     companion object {
         private fun JSONObject.d(k: String): Double? = if (has(k) && !isNull(k)) getDouble(k) else null
@@ -34,7 +34,7 @@ data class FitSummary(
         private fun JSONObject.s(k: String): String? = if (has(k) && !isNull(k)) getString(k) else null
         fun from(o: JSONObject) = FitSummary(o.optString("date"), o.d("kcal"), o.d("p"), o.d("c"), o.d("f"), o.d("w"),
             o.d("kt"), o.d("pt"), o.d("ct"), o.d("ft"), o.d("kg"), o.l("kga"), o.s("wo"), o.optBoolean("wd"), o.i("dw"), o.i("pw"),
-            o.s("cd"), o.s("cm"), o.s("cx"), o.s("cp"), o.optLong("at"))
+            o.s("cd"), o.optBoolean("cm"), o.optBoolean("cx"), o.optBoolean("cp"), o.optLong("at"), o.d("st"))
     }
 }
 data class Weather(val temp: Double, val code: Int, val hi: Double, val lo: Double, val rain: Int)

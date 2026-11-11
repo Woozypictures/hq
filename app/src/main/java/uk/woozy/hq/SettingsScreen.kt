@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -67,6 +69,7 @@ class SettingsActions(
     val importPrefs: () -> Unit,
     val clearCache: () -> Unit,
     val openRepo: () -> Unit,
+    val openUrl: (String) -> Unit = {},
     val openReleases: () -> Unit,
     val licenseText: () -> String,
 )
@@ -172,6 +175,7 @@ fun SettingsScreen(
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
+                .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 760.dp)
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -332,6 +336,22 @@ fun SettingsScreen(
                     T(actions.licenseText(), 10.sp, th.muted)
                 }
             }
+            // About is always open: who made it, the version, and the socials.
+            Column(Modifier.fillMaxWidth().card(18.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                T("About", 16.sp, th.fg, weight = FontWeight.Bold)
+                T("Created by Woozypictures", 14.sp, th.fg)
+                T("App version: " + versionText.substringBefore(" ("), 14.sp, th.muted)
+                SOCIALS.forEach { url ->
+                    T(url, 14.sp, th.tab[0], Modifier.fillMaxWidth().clickable { actions.openUrl(url) }.padding(vertical = 6.dp), weight = FontWeight.Medium)
+                }
+            }
         }
     }
 }
+
+/** Woozypictures socials, shown in About in every app. */
+val SOCIALS = listOf(
+    "https://www.instagram.com/woozypictures/",
+    "https://www.youtube.com/@WoozyPictures",
+    "https://x.com/WoozyPictures",
+)

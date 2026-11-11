@@ -93,6 +93,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.health.connect.client.HealthConnectClient
@@ -141,6 +143,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        Demo.apply(this, intent)
         cfg = Cfg.get(this)
         snap = Store.load(this)
         loadDiag()
@@ -249,6 +252,7 @@ class MainActivity : ComponentActivity() {
         },
         clearCache = { Diag.clear(this); snap = Snapshot(); loadDiag(); toast("Cached data cleared. Settings and token kept.") },
         openRepo = { open(REPO_URL) },
+        openUrl = { open(it) },
         openReleases = { open("$REPO_URL/releases") },
         licenseText = { try { assets.open("licenses/GoogleSans-OFL.txt").bufferedReader().use { it.readText() } } catch (_: Exception) { "Licence file missing" } },
     )
@@ -361,6 +365,8 @@ class MainActivity : ComponentActivity() {
             PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(scroll).navigationBarsPadding()
+                    // Cards may go wide on a tablet (two columns); Notion sub-pages are text, so they stay narrower.
+                    .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = if (sub.isEmpty()) 1280.dp else 760.dp)
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -417,6 +423,9 @@ class MainActivity : ComponentActivity() {
 
     // ---------- rearranging ----------
 
+    /** Step goal: HQ Fit's when it has one (so both apps agree), otherwise the one in Settings. */
+    private val stepsGoal: Int get() = snap.fit?.stepsTarget?.toInt()?.takeIf { it > 0 } ?: cfg.stepsTarget
+
     private val dragHeights = mutableStateMapOf<String, Int>()
     private var draggingKey by mutableStateOf<String?>(null)
     private var dragOffset by mutableStateOf(0f)
@@ -434,7 +443,14 @@ class MainActivity : ComponentActivity() {
                 }
                 result
             }
-            if (r == null) onLong()
+            if (r == null) {
+                onLong()
+                // Swallow the rest of this press, so lifting the finger does not also tap the button under it.
+                do {
+                    val e = awaitPointerEvent(PointerEventPass.Initial)
+                    e.changes.forEach { it.consume() }
+                } while (e.changes.any { it.pressed })
+            }
         }
     }
 
@@ -508,13 +524,28 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val vis = orderOf(tab, def).filter { it !in hidden }
         if (homeEditing) T("Drag the handle on a card to move it. Scroll as normal. Tap Done when finished.", 12.sp, th.muted)
-        vis.forEach { k ->
+        if (wide() && !homeEditing && vis.size > 1) {
+            // Tablet or unfolded phone: two columns, filled left, right, left... so the order still reads top down.
+            // Rearranging switches back to one column, where dragging up and down makes sense.
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                listOf(0, 1).forEach { col ->
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        vis.filterIndexed { i, _ -> i % 2 == col }.forEach { k ->
+                            androidx.compose.runtime.key(k) { Draggable(tab, def, k, vis) { render(k) } }
+                        }
+                    }
+                }
+            }
+        } else vis.forEach { k ->
             androidx.compose.runtime.key(k) {
                 Draggable(tab, def, k, vis) { render(k) }
                 if (homeEditing) extra(k)
             }
         }
     }
+
+    @Composable
+    private fun wide(): Boolean = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
 
     private val SUB_AREAS = mapOf("Apartment" to listOf("Flat"), "Finances" to listOf("Money"), "Travel" to listOf("Travel"),
         "CIMA" to listOf("CIMA"), "Content" to listOf("Content"), "Music" to listOf("Music"))
@@ -628,8 +659,8 @@ class MainActivity : ComponentActivity() {
                 "vitals" -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     small.forEach { k ->
                         when (k) {
-                            "steps" -> MiniStat("Steps", s.health?.steps?.let { nf.format(it) } ?: "-", if (cfg.stepsTarget > 0) "of ${nf.format(cfg.stepsTarget)}" else null,
-                                s.health?.steps?.let { if (cfg.stepsTarget > 0) (it.toFloat() / cfg.stepsTarget).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("pedometer") }
+                            "steps" -> MiniStat("Steps", s.health?.steps?.let { nf.format(it) } ?: "-", if (stepsGoal > 0) "of ${nf.format(stepsGoal)}" else null,
+                                s.health?.steps?.let { if (stepsGoal > 0) (it.toFloat() / stepsGoal).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("pedometer") }
                             "sleep" -> MiniStat("Sleep", s.health?.sleepMin?.takeIf { it > 0 }?.let { Fmt.duration(it) } ?: "-", if (cfg.sleepTargetMin > 0) "of ${Fmt.duration(cfg.sleepTargetMin.toLong())}" else null,
                                 s.health?.sleepMin?.takeIf { it > 0 }?.let { if (cfg.sleepTargetMin > 0) (it.toFloat() / cfg.sleepTargetMin).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("sleep") }
                             else -> MiniStat("Heart rate", s.health?.restingHr?.let { "$it" } ?: "-", "resting bpm", null, Modifier.weight(1f)) { openShealth("heartrate") }
@@ -885,7 +916,7 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val h = s.health
         val steps = h?.steps
-        val target = cfg.stepsTarget
+        val target = stepsGoal
         HCard("Steps", go) {
             if (h == null) { T(healthMissing(), 14.sp, th.muted); return@HCard }
             Row(verticalAlignment = Alignment.Bottom) {
@@ -960,8 +991,9 @@ class MainActivity : ComponentActivity() {
             f.waterMl?.takeIf { it > 0 }?.let { T("Water today: ${nf.format(it.toLong())} ml", 12.sp, th.muted) }
             Spacer(Modifier.height(6.dp))
             if (f.checkinDate != null) {
-                val parts = listOfNotNull(f.checkinMood?.let { "mood $it" }, f.checkinMetrics?.let { "metrics $it" }, f.checkinPhoto?.let { "photo $it" })
-                T("Last check-in ${f.checkinDate}" + if (parts.isNotEmpty()) " · " + parts.joinToString(", ") else "", 12.sp, th.muted)
+                val ticks = listOf("Mood" to f.checkinMood, "Body metrics" to f.checkinMetrics, "Progress photo" to f.checkinPhoto)
+                T("Sunday check-in " + (runCatching { LocalDate.parse(f.checkinDate).format(DateTimeFormatter.ofPattern("d MMM", UK)) }.getOrNull() ?: f.checkinDate) + ": ${ticks.count { it.second }} of 3", 12.sp, th.muted, weight = FontWeight.SemiBold)
+                ticks.forEach { (n, done) -> T((if (done) "\u2713 " else "\u25CB ") + n, 13.sp, if (done) th.fg else th.muted) }
             } else T("No check-in yet", 12.sp, th.muted)
         }
     }
@@ -1097,8 +1129,8 @@ class MainActivity : ComponentActivity() {
             val all = hist.days.filter { it.date != todayStr }
             val win = all.takeLast(span)
             val prev = if (span == 7) all.dropLast(span).takeLast(span) else emptyList()
-            T("Steps per day" + if (cfg.stepsTarget > 0) " (dashed line = target)" else "", 11.sp, th.muted)
-            StepsBars(win.map { it.steps }, cfg.stepsTarget, th.tab[2])
+            T("Steps per day" + if (stepsGoal > 0) " (dashed line = target)" else "", 11.sp, th.muted)
+            StepsBars(win.map { it.steps }, stepsGoal, th.tab[2])
             Spacer(Modifier.height(6.dp))
             @Composable fun row(label: String, f: (DayStat) -> Double?, fmt: (Double) -> String, dfmt: (Double) -> String) {
                 val v = win.mapNotNull(f)

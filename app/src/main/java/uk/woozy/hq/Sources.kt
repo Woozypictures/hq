@@ -331,9 +331,10 @@ object FitSrc {
                 workoutToday = workout?.takeIf { it != "0" && !it.equals("false", true) },
                 workoutDone = (lng("workout_today_done") ?: 0L) != 0L || str("workout_today_done").equals("true", true),
                 doneWeek = lng("workouts_done_week")?.toInt(), plannedWeek = lng("workouts_planned_week")?.toInt(),
-                checkinDate = str("checkin_date"), checkinMood = str("checkin_mood"),
-                checkinMetrics = str("checkin_metrics"), checkinPhoto = str("checkin_photo"),
-                readAt = System.currentTimeMillis(),
+                // The three check-in columns are 1 when ticked, 0 when not.
+                checkinDate = str("checkin_date"), checkinMood = (lng("checkin_mood") ?: 0L) != 0L,
+                checkinMetrics = (lng("checkin_metrics") ?: 0L) != 0L, checkinPhoto = (lng("checkin_photo") ?: 0L) != 0L,
+                readAt = System.currentTimeMillis(), stepsTarget = dbl("steps_target")?.takeIf { it > 0 },
             )
         }
     }
