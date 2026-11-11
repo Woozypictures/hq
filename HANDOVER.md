@@ -100,3 +100,13 @@ Notion IDs used by the app (all in `Sources.kt`, object `Links`, `NotionSrc`):
 - Font: Google Sans (SIL OFL 1.1, from @fontsource/google-sans 5.3.2) bundled for both themes; licence in assets/licenses. Hanken Grotesk removed. Widget still uses Product Sans from the owner's KWGT pack (proprietary, private repo, personal use); decide whether to switch it.
 - Not done: water reading, charts, drag reorder (up/down used), distance/currency are saved but unused, 06:43 is the Claude scheduled task not an app timer.
 - Build: GitHub Actions run 5 succeeded. Not tested on a device.
+
+## 10. v0.5 to v0.7 (Nov 2026)
+- Colour schemes ported from the HQ artifact (16 + Frosted), Appearance setting (match phone / light / dark; dark variant derived for light schemes). Font unchanged.
+- Pull to refresh; long-press any card on any tab to drag-rearrange (per-tab order saved in settings).
+- Tabs have icons and sub-page chips (Life: Apartment, Finances, Travel, Healthcare, Archive; Health: Fitness, Habits; Career: CIMA, Portfolios, Goals, Be Greater; Create: Content, Music, Moodboard, Reading). Sub-pages read the Notion page blocks (blocks/{id}/children, cached) and show child pages as cards plus tasks by area. Hub links removed.
+- Home: steps/sleep/heart rate as 3 small cards (can be made wide), Calories and macros card (Cronometer-style via Health Connect: energy, protein, net carbs, fat), events toggle (Today / This week / This month; week and month = all-day only), countdowns open the matching calendar event, weather opens the weather app, YouTube/Instagram tiles open the apps, Samsung Health deep links (shealth://tracker.*, UNVERIFIED, falls back to launching the app).
+- Targets: Health Connect and Cronometer expose no targets, so they are settings. Calories 2297, protein 150, net carbs 260, fat 70 seeded once from the Cronometer screenshot.
+- Instagram: vidiq_instagram_connected_accounts is broken on vidIQ's side; the morning task now uses vidiq_social_account_list + vidiq_instagram_owner_insights (0 credits). Feed JSON gained youtube.handle.
+- Notion: Archive moved under LIFE; Notes page removed from the app; the Notes page itself still exists in Notion (trash denied by the tool, delete by hand).
+- Build: GitHub Actions run 11 succeeded. Not tested on a device.
