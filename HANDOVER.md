@@ -144,3 +144,6 @@ Notion IDs used by the app (all in `Sources.kt`, object `Links`, `NotionSrc`):
 - Data map artifact: https://claude.ai/artifact/6GuK6qLaVPev8rKdncMtBt
 - Branches `iconpack-ci` and `iconpack-out` in this repo were temporary (icon pack 2.3 compile check); they now hold only a note. Delete them on GitHub (the session proxy cannot delete branches).
 - Icon pack 2.3 (source ZIP given to Mahesh): icons for HQ and HQ Fit, About panel with the links, tablet grid. Must be signed with the Woozypictures release keystore (alias woozypictures-release) using BUILD_APK_WINDOWS.ps1; Claude never has that key.
+
+## 13. History overlay (11 Nov 2026)
+HQ Fit's provider also answers `/history` (date, kcal, protein_g, version, last 30 days, only days with diary entries) and `/weights` (weight_at_ms, weight_kg, version). HQ reads them when it refreshes its 30-day history (`FitSrc.readHistory`) and `FitSrc.overlayHistory` replaces Health Connect kcal/protein for those days and Health Connect weights from HQ Fit's first reading onwards. Days HQ Fit has no entries for, and today, are left as Health Connect gave them. Today's `/today` row and version 1 are unchanged. Older HQ Fit without these paths: the read returns nothing and HQ keeps the Health Connect values.

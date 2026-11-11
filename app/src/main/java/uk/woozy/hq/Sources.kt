@@ -339,6 +339,44 @@ object FitSrc {
         }
     }
 
+    private val HIST_URI = android.net.Uri.parse("content://uk.woozy.fit.summary/history")
+    private val WEIGHTS_URI = android.net.Uri.parse("content://uk.woozy.fit.summary/weights")
+
+    /** HQ Fit's last 30 days of food and weights. Null when HQ Fit is not installed or has no history path (older HQ Fit). */
+    fun readHistory(c: Context): Pair<Map<String, Pair<Double, Double>>, List<WeightPt>>? {
+        if (!installed(c)) return null
+        val days = HashMap<String, Pair<Double, Double>>()
+        val cur = c.contentResolver.query(HIST_URI, null, null, null, null) ?: return null
+        cur.use { q ->
+            val di = q.getColumnIndex("date"); val ki = q.getColumnIndex("kcal"); val pi = q.getColumnIndex("protein_g"); val vi = q.getColumnIndex("version")
+            while (q.moveToNext()) {
+                if (di < 0 || ki < 0 || pi < 0 || (vi >= 0 && q.getInt(vi) != SUPPORTED_VERSION)) return null
+                days[q.getString(di)] = q.getDouble(ki) to q.getDouble(pi)
+            }
+        }
+        val weights = ArrayList<WeightPt>()
+        c.contentResolver.query(WEIGHTS_URI, null, null, null, null)?.use { q ->
+            val ti = q.getColumnIndex("weight_at_ms"); val wi = q.getColumnIndex("weight_kg")
+            while (q.moveToNext()) if (ti >= 0 && wi >= 0) weights += WeightPt(q.getLong(ti), q.getDouble(wi))
+        }
+        return days to weights
+    }
+
+    /**
+     * Where HQ Fit has a day, its kcal and protein replace Health Connect's for that day (no double counting with Cronometer).
+     * Days HQ Fit has no entries for keep Health Connect's value, so history from before HQ Fit is not lost.
+     * Weights: from HQ Fit's first reading onwards only HQ Fit's are used, earlier ones stay as they were.
+     */
+    fun overlayHistory(h: HealthHistory, fit: Pair<Map<String, Pair<Double, Double>>, List<WeightPt>>?): HealthHistory {
+        if (fit == null) return h
+        val (days, weights) = fit
+        val today = LocalDate.now().toString() // today comes live from the main read, not this cached history
+        val nd = h.days.map { d -> days[d.date]?.takeIf { d.date != today }?.let { (k, p) -> d.copy(kcal = k.takeIf { it > 0 }, protein = p.takeIf { k > 0 && it > 0 }) } ?: d }
+        val firstFit = weights.minOfOrNull { it.t }
+        val nw = if (firstFit == null) h.weights else (h.weights.filter { it.t < firstFit } + weights).sortedBy { it.t }
+        return h.copy(days = nd, weights = nw)
+    }
+
     /** HQ Fit owns food, water and weight. Where it answered, its values replace Health Connect's so nothing is counted twice. */
     fun overlay(h: Health?, x: HealthExtra?, f: FitSummary?): Pair<Health?, HealthExtra?> {
         if (f == null || h == null) return h to x
@@ -383,7 +421,9 @@ object Repo {
             val extra = async { runCatching { HealthExtraSrc.readExtra(c) } }
             val fitR = async { runCatching { FitSrc.read(c) } }
             val stale = manual || System.currentTimeMillis() - (old.history?.at ?: 0) > 3 * 3_600_000L
-            val history = async { if (stale) runCatching { HealthExtraSrc.readHistory(c) } else null }
+            val history = async {
+                if (stale) runCatching { HealthExtraSrc.readHistory(c) }.map { h -> FitSrc.overlayHistory(h, runCatching { FitSrc.readHistory(c) }.getOrNull()) } else null
+            }
 
             val hr = health.await()
             val fit = track("HQ Fit", fitR.await(), old.fit)
