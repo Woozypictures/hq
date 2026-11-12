@@ -2,6 +2,7 @@ package uk.woozy.hq
 
 import android.Manifest
 import android.content.ClipboardManager
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.shape.CircleShape
 import android.content.ContentUris
@@ -413,7 +414,7 @@ class MainActivity : ComponentActivity() {
         Box(
             Modifier.size(38.dp).clip(CircleShape).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.12f))
                 .pointerInput(Unit) {
-                    androidx.compose.foundation.gestures.detectTapGestures(
+                    detectTapGestures(
                         onTap = { pickAvatar.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                         onLongPress = { if (Avatar.has(this@MainActivity)) { Avatar.clear(this@MainActivity); avatarTick++; Toast.makeText(this@MainActivity, "Profile picture removed", Toast.LENGTH_SHORT).show() } },
                     )
