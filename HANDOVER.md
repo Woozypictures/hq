@@ -150,3 +150,6 @@ HQ Fit's provider also answers `/history` (date, kcal, protein_g, version, last 
 
 ## 14. 12 Nov 2026 (00:20): see Project doc `claude/handover-12-nov.md`
 Profile picture circle in the header (tap choose, long-press remove), v0.22. History overlay is section 13. Outstanding list and plans are in the Project handover.
+
+## 15. 12 Nov 2026 (evening): profile picture = Notion page icon
+The picture is no longer chosen in the app. Every refresh `NotionSrc.pageIcon` reads the icon of the DASHBOARD page (`Avatar.DASHBOARD_PAGE`); `Avatar.sync` downloads it only when the icon's stable id (file link without its signature) changes, centre-crops to 384 px and stores `avatar.jpg`. Emoji or no icon removes the picture (initial shown). A failure appears as "Profile picture" in Settings > Advanced and keeps the old picture. HQ shares the file with HQ Fit through `AvatarProvider` (`content://uk.woozy.hq.avatar/avatar`, signature permission `uk.woozy.hq.permission.READ_AVATAR`, declared by both apps). Choose/Remove photo removed from Settings. NOT tested on a phone.

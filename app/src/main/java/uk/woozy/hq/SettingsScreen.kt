@@ -70,9 +70,6 @@ class SettingsActions(
     val clearCache: () -> Unit,
     val openRepo: () -> Unit,
     val openUrl: (String) -> Unit = {},
-    val choosePhoto: () -> Unit = {},
-    val removePhoto: () -> Unit = {},
-    val hasPhoto: () -> Boolean = { false },
     val name: () -> String = { "Mahesh" },
     val saveName: (String) -> Unit = {},
     val height: () -> String = { "" },
@@ -160,7 +157,6 @@ fun SettingsScreen(
         }
     }
 
-    var photoTick by remember { mutableStateOf(0) }
 
     @Composable fun Section(key: String, title: String, content: @Composable () -> Unit) {
         val isOpen = open == key
@@ -189,12 +185,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Section("profile", "Profile") {
-                androidx.compose.runtime.key(photoTick) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Btn("Choose photo") { actions.choosePhoto() }
-                        if (actions.hasPhoto()) Btn("Remove photo") { actions.removePhoto(); photoTick++ }
-                    }
-                }
+                T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in HQ Fit on the next refresh.", 13.sp, th.muted)
                 TextField("Name", actions.name(), "Name") { actions.saveName(it) }
                 TextField("Height (cm)", actions.height(), "e.g. 175") { actions.saveHeight(it) }
                 T("Weights are kilograms throughout. Both settings stay on this phone.", 13.sp, th.muted)

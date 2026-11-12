@@ -118,6 +118,20 @@ object NotionSrc {
         }
     }
 
+    /**
+     * The picture icon of the DASHBOARD page (the profile picture): (stable id, download url), or null when the icon
+     * is an emoji or empty. Uploaded icons come as short-lived signed links, so the id is the link without its query.
+     */
+    fun pageIcon(token: String): Pair<String, String>? {
+        val icon = call(token, "GET", "pages/${Avatar.DASHBOARD_PAGE}").optJSONObject("icon") ?: return null
+        val url = when (icon.optString("type")) {
+            "file" -> icon.optJSONObject("file")?.optString("url")
+            "external" -> icon.optJSONObject("external")?.optString("url")
+            else -> null
+        }?.takeIf { it.isNotBlank() } ?: return null
+        return url.substringBefore('?') to url
+    }
+
     /** Contents of a Notion page as simple blocks, for the sub-page views. Nested blocks are not expanded. */
     fun page(token: String, id: String): List<Block> {
         val r = call(token, "GET", "blocks/${id.replace("-", "")}/children?page_size=100")
@@ -456,6 +470,7 @@ object Repo {
             val tasks = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.tasks(token) } }
             val cds = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.countdowns(token) } }
             val feed = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.feed(token) } }
+            val avatar = async { runCatching { if (token.isNotEmpty()) Avatar.sync(c, NotionSrc.pageIcon(token)); Unit } }
             val weather = async { runCatching { WeatherSrc.read() } }
             val events = async { runCatching { CalendarSrc.read(c) } }
             val health = async { runCatching { HealthSrc.read(c) } }
@@ -469,6 +484,7 @@ object Repo {
             val hr = health.await()
             val fit = track("HQ Fit", fitR.await(), old.fit)
             val hist = history.await()
+            track<Unit>("Profile picture", avatar.await(), null)
             val hVal = track("Health", hr, old.health)
             val xVal = if (hr.isSuccess) track("Health details", extra.await(), old.healthX) else old.healthX
             val (hOut, xOut) = FitSrc.overlay(hVal, xVal, fit)

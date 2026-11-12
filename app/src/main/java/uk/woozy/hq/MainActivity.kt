@@ -142,10 +142,6 @@ class MainActivity : ComponentActivity() {
     private val calPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { askHealth() }
     private val healthPerm = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { refresh(true) }
     private val notifPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    private var avatarTick by mutableStateOf(0)
-    private val pickAvatar = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) { Avatar.save(this, uri); avatarTick++ }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -260,9 +256,6 @@ class MainActivity : ComponentActivity() {
         clearCache = { Diag.clear(this); snap = Snapshot(); loadDiag(); toast("Cached data cleared. Settings and token kept.") },
         openRepo = { open(REPO_URL) },
         openUrl = { open(it) },
-        choosePhoto = { pickAvatar.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-        removePhoto = { Avatar.clear(this); avatarTick++ },
-        hasPhoto = { Avatar.has(this) },
         name = { Store.name(this) },
         saveName = { Store.setName(this, it) },
         height = { Store.heightCm(this) },
@@ -413,11 +406,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Tap to open Settings, same as HQ Fit. The picture is chosen in Settings > General. Shows an M on a plain circle until one is set. */
+    /** Tap to open Settings, same as HQ Fit. The picture is the Notion DASHBOARD page icon, refreshed with everything else. Shows an M on a plain circle until there is one. */
     @Composable
     private fun AvatarButton() {
         val th = LocalTh.current
-        val bitmap = remember(avatarTick) { Avatar.load(this@MainActivity) }
+        val bitmap = remember(snap.updated) { Avatar.load(this@MainActivity) }
         Box(
             Modifier.size(44.dp).clip(CircleShape).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.12f))
                 .clickable { openSettings() },
