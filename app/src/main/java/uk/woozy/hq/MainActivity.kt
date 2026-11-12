@@ -615,6 +615,7 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val id = pageId(url)
         LaunchedEffect(id) { loadPage(id) }
+        if (name == "Apartment") FlatCard(tc)
         val areas = SUB_AREAS[name]
         if (areas != null) Section("Tasks") { TasksPanel(s, tasksIn(s, *areas.toTypedArray()), "No tasks here", "lane") }
         val blocks = pageBlocks[id]
@@ -710,9 +711,10 @@ class MainActivity : ComponentActivity() {
     private fun LifeTab(s: Snapshot, sub: String) {
         val tc = LocalTh.current.tab[1]
         if (sub.isNotEmpty()) { Links.LIFE_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
-        Rearrange("life", listOf("progress", "admin")) { k ->
+        Rearrange("life", listOf("progress", "flat", "admin")) { k ->
             when (k) {
                 "progress" -> Section("Progress") { Panel { LifeBars(tc) } }
+                "flat" -> FlatCard(tc)
                 else -> Section("Life admin", "Open", { open(Links.LIFE) }) {
                     TasksPanel(s, tasksIn(s, "Flat", "Money", "Life admin"), "Nothing on for flat, money or admin", "area")
                 }
@@ -1194,6 +1196,50 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun healthMissing() = if (diag["Health"]?.lastError?.isNotEmpty() == true) diag["Health"]!!.lastError else "Allow Health Connect in Settings > Connections"
+
+    private var flat by mutableStateOf<FlatMoney?>(null)
+    private var flatErr by mutableStateOf<String?>(null)
+    private var flatAt = 0L
+
+    private fun loadFlat(force: Boolean = false) {
+        val token = Store.token(this)
+        if (token.isEmpty()) { flatErr = "Add your Notion token in Settings > Connections"; return }
+        if (!force && System.currentTimeMillis() - flatAt < 5 * 60_000) return
+        flatAt = System.currentTimeMillis()
+        lifecycleScope.launch {
+            try { flat = withContext(Dispatchers.IO) { NotionSrc.flat(token) }; flatErr = null }
+            catch (e: Exception) { flatErr = friendly(e.message ?: "Couldn't load the flat databases") }
+        }
+    }
+
+    private fun gbp(v: Double): String = "\u00a3" + "%,.0f".format(UK, v)
+
+    /** This month at Flat 53, from Notion > Life > Apartment (Flat Accounts, Flat Expenses, Flat Income). */
+    @Composable
+    private fun FlatCard(tc: Color) {
+        val th = LocalTh.current
+        LaunchedEffect(Unit) { loadFlat() }
+        val f = flat
+        val month = LocalDate.now(Cfg.zone).format(DateTimeFormatter.ofPattern("MMMM", UK))
+        Section("Flat this month", "Notion", { open(Links.n("31d4afc93b0080d09181e30de2acf638")) }) {
+            flatErr?.let { Flag(it) }
+            if (f == null && flatErr == null) Panel { Muted("Loading...") }
+            if (f != null) {
+                val lodgerIn = if (f.received > 0) f.received else f.expected
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Tile("Spent", gbp(f.spent), "of ${gbp(f.budget)} budget", tc, Modifier.weight(1f))
+                    Tile("Lodger", gbp(f.received), if (f.expected > 0) "of ${gbp(f.expected)} due" else "none logged", tc, Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Tile("Your cost", gbp((if (f.spent > 0) f.spent else f.budget) - lodgerIn), if (f.spent > 0) "after lodger" else "budget, after lodger", tc, Modifier.weight(1f))
+                    Tile("Next renewal", if (f.renewalDate.isEmpty()) "None set" else LocalDate.parse(f.renewalDate).format(DateTimeFormatter.ofPattern("d MMM", UK)),
+                        f.renewalName.ifEmpty { "add contract end dates" }, tc, Modifier.weight(1f))
+                }
+                T(if (f.bills == 0) "No bills logged for $month yet. Add them in Flat Expenses." else "${f.bills} bill${if (f.bills == 1) "" else "s"} logged for $month. Lodger share of bills budget ${gbp(f.lodgerBudget)}.",
+                    12.sp, th.muted)
+            }
+        }
+    }
 
     // ---------- building blocks ----------
 

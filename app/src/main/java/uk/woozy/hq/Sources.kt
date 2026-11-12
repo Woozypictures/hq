@@ -169,6 +169,47 @@ object NotionSrc {
         }
     }
 
+    private const val FLAT_ACCOUNTS_DS = "38ee41c7-40a1-4cbc-8922-c85658af8f29"
+    private const val FLAT_EXPENSES_DS = "6ae6ed32-3a30-433e-a575-0d0418d5028b"
+    private const val FLAT_INCOME_DS = "2f5adcfe-4f55-4289-8078-addf08ff9d64"
+
+    private fun rows(token: String, ds: String, body: JSONObject = JSONObject()): List<JSONObject> {
+        val out = mutableListOf<JSONObject>()
+        var cursor: String? = null
+        do {
+            val b = JSONObject(body.toString()).put("page_size", 100)
+            if (cursor != null) b.put("start_cursor", cursor)
+            val r = call(token, "POST", "data_sources/$ds/query", b)
+            val res = r.getJSONArray("results")
+            for (i in 0 until res.length()) out += res.getJSONObject(i)
+            cursor = if (r.optBoolean("has_more")) r.optString("next_cursor") else null
+        } while (cursor != null && out.size < 1000)
+        return out
+    }
+
+    private fun num(p: JSONObject, name: String) = prop(p, name).toDoubleOrNull() ?: 0.0
+
+    /** Notion > Life > Apartment: budgets from Flat Accounts, this month's bills and lodger money. */
+    fun flat(token: String): FlatMoney {
+        val today = LocalDate.now(Cfg.zone)
+        val from = today.withDayOfMonth(1).toString()
+        val after = JSONObject().put("filter", JSONObject().put("property", "Date").put("date", JSONObject().put("on_or_after", from)))
+        val accounts = rows(token, FLAT_ACCOUNTS_DS)
+        val expenses = rows(token, FLAT_EXPENSES_DS, after)
+        val income = rows(token, FLAT_INCOME_DS, JSONObject().put("filter", JSONObject().put("property", "Month").put("date", JSONObject().put("on_or_after", from))))
+        val renewal = accounts.mapNotNull { a -> prop(a, "Contract end").take(10).takeIf { it.length == 10 && it >= today.toString() }?.let { it to prop(a, "Account") } }
+            .minByOrNull { it.first }
+        return FlatMoney(
+            budget = accounts.sumOf { num(it, "Monthly budget") },
+            lodgerBudget = accounts.sumOf { num(it, "Monthly budget") * num(it, "Lodger share %") },
+            spent = expenses.sumOf { num(it, "Amount") },
+            bills = expenses.size,
+            expected = income.sumOf { num(it, "Expected") },
+            received = income.sumOf { num(it, "Received") },
+            renewalDate = renewal?.first ?: "", renewalName = renewal?.second ?: "",
+        )
+    }
+
     /** The morning Claude task writes a JSON code block into the HQ Feed page. */
     fun feed(token: String): JSONObject? {
         val r = call(token, "GET", "blocks/$FEED_PAGE/children?page_size=50")
@@ -451,3 +492,9 @@ object Repo {
         }
     }
 }
+
+/** One month of flat money, read from the three Flat databases in Notion. */
+data class FlatMoney(
+    val budget: Double, val lodgerBudget: Double, val spent: Double, val bills: Int,
+    val expected: Double, val received: Double, val renewalDate: String, val renewalName: String,
+)
