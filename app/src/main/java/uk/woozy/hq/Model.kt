@@ -61,6 +61,11 @@ object Store {
     fun setToken(c: Context, t: String) = prefs(c).edit().putString("token", t.trim()).apply()
     fun dob(c: Context): String = prefs(c).getString("dob", "") ?: ""
     fun setDob(c: Context, d: String) = prefs(c).edit().putString("dob", d.trim()).apply()
+    /** Profile: same name and height fields as HQ Fit's Settings > Profile. */
+    fun name(c: Context): String = prefs(c).getString("name", null)?.takeIf { it.isNotBlank() } ?: "Mahesh"
+    fun setName(c: Context, v: String) = prefs(c).edit().putString("name", v.trim()).apply()
+    fun heightCm(c: Context): String = prefs(c).getFloat("height", 0f).takeIf { it > 0f }?.let { if (it % 1f == 0f) it.toInt().toString() else it.toString() } ?: ""
+    fun setHeightCm(c: Context, v: String) = prefs(c).edit().putFloat("height", v.trim().toFloatOrNull() ?: 0f).apply()
     /** Step target now lives in Settings. 0 (not set) falls back to 10,000 for the widget bar. */
     fun stepGoal(c: Context): Int = Cfg.get(c).stepsTarget.let { if (it <= 0) 10000 else it }
     fun pageCache(c: Context, id: String): List<Block>? = try {

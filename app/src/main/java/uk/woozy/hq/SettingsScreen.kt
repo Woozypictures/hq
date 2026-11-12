@@ -73,6 +73,10 @@ class SettingsActions(
     val choosePhoto: () -> Unit = {},
     val removePhoto: () -> Unit = {},
     val hasPhoto: () -> Boolean = { false },
+    val name: () -> String = { "Mahesh" },
+    val saveName: (String) -> Unit = {},
+    val height: () -> String = { "" },
+    val saveHeight: (String) -> Unit = {},
     val openReleases: () -> Unit,
     val licenseText: () -> String,
 )
@@ -184,13 +188,19 @@ fun SettingsScreen(
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Section("general", "General") {
+            Section("profile", "Profile") {
                 androidx.compose.runtime.key(photoTick) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Btn("Choose profile photo") { actions.choosePhoto() }
+                        Btn("Choose photo") { actions.choosePhoto() }
                         if (actions.hasPhoto()) Btn("Remove photo") { actions.removePhoto(); photoTick++ }
                     }
                 }
+                TextField("Name", actions.name(), "Name") { actions.saveName(it) }
+                TextField("Height (cm)", actions.height(), "e.g. 175") { actions.saveHeight(it) }
+                T("Weights are kilograms throughout. Both settings stay on this phone.", 13.sp, th.muted)
+            }
+
+            Section("general", "General") {
                 Opts("Appearance", listOf("system" to "Match phone", "light" to "Light", "dark" to "Dark"), s.appearance) { onChange(s.copy(appearance = it)) }
                 Opts("Colour scheme", THEME_NAMES, s.theme) { onChange(s.copy(theme = it)) }
                 Opts("Temperature", listOf("C" to "Celsius", "F" to "Fahrenheit"), s.tempUnit) { onChange(s.copy(tempUnit = it)) }

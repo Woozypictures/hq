@@ -263,6 +263,10 @@ class MainActivity : ComponentActivity() {
         choosePhoto = { pickAvatar.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
         removePhoto = { Avatar.clear(this); avatarTick++ },
         hasPhoto = { Avatar.has(this) },
+        name = { Store.name(this) },
+        saveName = { Store.setName(this, it) },
+        height = { Store.heightCm(this) },
+        saveHeight = { Store.setHeightCm(this, it) },
         openReleases = { open("$REPO_URL/releases") },
         licenseText = { try { assets.open("licenses/GoogleSans-OFL.txt").bufferedReader().use { it.readText() } } catch (_: Exception) { "Licence file missing" } },
     )
@@ -420,7 +424,7 @@ class MainActivity : ComponentActivity() {
             contentAlignment = Alignment.Center,
         ) {
             if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), "Settings", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(44.dp))
-            else T("M", 17.sp, th.fg, weight = FontWeight.Bold)
+            else T(Store.name(this@MainActivity).take(1).uppercase().ifEmpty { "M" }, 17.sp, th.fg, weight = FontWeight.Bold)
         }
     }
 
@@ -658,7 +662,7 @@ class MainActivity : ComponentActivity() {
         val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
         val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
         Column {
-            T("$greet, Mahesh.", 20.sp, th.fg, weight = FontWeight.Bold)
+            T("$greet, ${Store.name(this@MainActivity)}.", 20.sp, th.fg, weight = FontWeight.Bold)
             if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", 13.sp, th.muted)
         }
         if (cfg.showErrors && problems.isNotEmpty()) {
