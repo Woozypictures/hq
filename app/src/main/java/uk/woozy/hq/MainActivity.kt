@@ -2,6 +2,8 @@ package uk.woozy.hq
 
 import android.Manifest
 import android.content.ClipboardManager
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.shape.CircleShape
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
@@ -139,6 +141,10 @@ class MainActivity : ComponentActivity() {
     private val calPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { askHealth() }
     private val healthPerm = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { refresh(true) }
     private val notifPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private var avatarTick by mutableStateOf(0)
+    private val pickAvatar = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) { Avatar.save(this, uri); avatarTick++ }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -392,9 +398,30 @@ class MainActivity : ComponentActivity() {
                 T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), 32.sp, th.fg, weight = FontWeight.Bold, caps = true)
                 T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "", 11.sp, th.muted, caps = true)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (homeEditing) Pill("Done") { homeEditing = false } else Pill("Settings") { openSettings() }
+                AvatarButton()
             }
+        }
+    }
+
+    /** Tap to choose a profile picture; long-press to remove it. Shows an M on a plain circle until one is set. */
+    @Composable
+    private fun AvatarButton() {
+        val th = LocalTh.current
+        val bitmap = remember(avatarTick) { Avatar.load(this@MainActivity) }
+        Box(
+            Modifier.size(38.dp).clip(CircleShape).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.12f))
+                .pointerInput(Unit) {
+                    androidx.compose.foundation.gestures.detectTapGestures(
+                        onTap = { pickAvatar.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onLongPress = { if (Avatar.has(this@MainActivity)) { Avatar.clear(this@MainActivity); avatarTick++; Toast.makeText(this@MainActivity, "Profile picture removed", Toast.LENGTH_SHORT).show() } },
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp))
+            else T("M", 15.sp, th.fg, weight = FontWeight.Bold)
         }
     }
 
