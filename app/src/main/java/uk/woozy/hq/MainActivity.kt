@@ -1229,10 +1229,11 @@ class MainActivity : ComponentActivity() {
             flatErr?.let { Flag(it) }
             if (f == null && flatErr == null) Panel { Muted("Loading...") }
             if (f != null) {
-                val lodgerIn = if (f.received > 0) f.received else f.expected
+                val due = if (f.expected > 0) f.expected else f.lodgerBudget
+                val lodgerIn = if (f.received > 0) f.received else due
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Tile("Spent", gbp(f.spent), "of ${gbp(f.budget)} budget", tc, Modifier.weight(1f))
-                    Tile("Lodger", gbp(f.received), if (f.expected > 0) "of ${gbp(f.expected)} due" else "none logged", tc, Modifier.weight(1f))
+                    Tile("Lodger", gbp(f.received), if (due > 0) "of ${gbp(due)} due" else "none logged", tc, Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Tile("Your cost", gbp((if (f.spent > 0) f.spent else f.budget) - lodgerIn), if (f.spent > 0) "after lodger" else "budget, after lodger", tc, Modifier.weight(1f))
