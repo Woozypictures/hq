@@ -70,6 +70,9 @@ class SettingsActions(
     val clearCache: () -> Unit,
     val openRepo: () -> Unit,
     val openUrl: (String) -> Unit = {},
+    val choosePhoto: () -> Unit = {},
+    val removePhoto: () -> Unit = {},
+    val hasPhoto: () -> Boolean = { false },
     val openReleases: () -> Unit,
     val licenseText: () -> String,
 )
@@ -153,6 +156,8 @@ fun SettingsScreen(
         }
     }
 
+    var photoTick by remember { mutableStateOf(0) }
+
     @Composable fun Section(key: String, title: String, content: @Composable () -> Unit) {
         val isOpen = open == key
         Column(Modifier.fillMaxWidth().card(18.dp)) {
@@ -180,6 +185,12 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Section("general", "General") {
+                androidx.compose.runtime.key(photoTick) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Btn("Choose profile photo") { actions.choosePhoto() }
+                        if (actions.hasPhoto()) Btn("Remove photo") { actions.removePhoto(); photoTick++ }
+                    }
+                }
                 Opts("Appearance", listOf("system" to "Match phone", "light" to "Light", "dark" to "Dark"), s.appearance) { onChange(s.copy(appearance = it)) }
                 Opts("Colour scheme", THEME_NAMES, s.theme) { onChange(s.copy(theme = it)) }
                 Opts("Temperature", listOf("C" to "Celsius", "F" to "Fahrenheit"), s.tempUnit) { onChange(s.copy(tempUnit = it)) }

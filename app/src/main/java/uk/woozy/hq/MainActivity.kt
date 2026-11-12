@@ -260,6 +260,9 @@ class MainActivity : ComponentActivity() {
         clearCache = { Diag.clear(this); snap = Snapshot(); loadDiag(); toast("Cached data cleared. Settings and token kept.") },
         openRepo = { open(REPO_URL) },
         openUrl = { open(it) },
+        choosePhoto = { pickAvatar.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        removePhoto = { Avatar.clear(this); avatarTick++ },
+        hasPhoto = { Avatar.has(this) },
         openReleases = { open("$REPO_URL/releases") },
         licenseText = { try { assets.open("licenses/GoogleSans-OFL.txt").bufferedReader().use { it.readText() } } catch (_: Exception) { "Licence file missing" } },
     )
@@ -400,29 +403,24 @@ class MainActivity : ComponentActivity() {
                 T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "", 11.sp, th.muted, caps = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (homeEditing) Pill("Done") { homeEditing = false } else Pill("Settings") { openSettings() }
+                if (homeEditing) Pill("Done") { homeEditing = false }
                 AvatarButton()
             }
         }
     }
 
-    /** Tap to choose a profile picture; long-press to remove it. Shows an M on a plain circle until one is set. */
+    /** Tap to open Settings, same as HQ Fit. The picture is chosen in Settings > General. Shows an M on a plain circle until one is set. */
     @Composable
     private fun AvatarButton() {
         val th = LocalTh.current
         val bitmap = remember(avatarTick) { Avatar.load(this@MainActivity) }
         Box(
-            Modifier.size(38.dp).clip(CircleShape).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.12f))
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { pickAvatar.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        onLongPress = { if (Avatar.has(this@MainActivity)) { Avatar.clear(this@MainActivity); avatarTick++; Toast.makeText(this@MainActivity, "Profile picture removed", Toast.LENGTH_SHORT).show() } },
-                    )
-                },
+            Modifier.size(44.dp).clip(CircleShape).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.12f))
+                .clickable { openSettings() },
             contentAlignment = Alignment.Center,
         ) {
-            if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp))
-            else T("M", 15.sp, th.fg, weight = FontWeight.Bold)
+            if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), "Settings", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(44.dp))
+            else T("M", 17.sp, th.fg, weight = FontWeight.Bold)
         }
     }
 
