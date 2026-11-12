@@ -147,3 +147,6 @@ Notion IDs used by the app (all in `Sources.kt`, object `Links`, `NotionSrc`):
 
 ## 13. History overlay (11 Nov 2026)
 HQ Fit's provider also answers `/history` (date, kcal, protein_g, version, last 30 days, only days with diary entries) and `/weights` (weight_at_ms, weight_kg, version). HQ reads them when it refreshes its 30-day history (`FitSrc.readHistory`) and `FitSrc.overlayHistory` replaces Health Connect kcal/protein for those days and Health Connect weights from HQ Fit's first reading onwards. Days HQ Fit has no entries for, and today, are left as Health Connect gave them. Today's `/today` row and version 1 are unchanged. Older HQ Fit without these paths: the read returns nothing and HQ keeps the Health Connect values.
+
+## 14. 12 Nov 2026 (00:20): see Project doc `claude/handover-12-nov.md`
+Profile picture circle in the header (tap choose, long-press remove), v0.22. History overlay is section 13. Outstanding list and plans are in the Project handover.
