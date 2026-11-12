@@ -662,7 +662,7 @@ class MainActivity : ComponentActivity() {
         val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
         val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
         Column {
-            T("$greet, ${Store.name(this@MainActivity)}.", 20.sp, th.fg, weight = FontWeight.Bold)
+            T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", 20.sp, th.fg, weight = FontWeight.Bold)
             if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", 13.sp, th.muted)
         }
         if (cfg.showErrors && problems.isNotEmpty()) {
