@@ -184,7 +184,7 @@ fun GlassPillNav(
                 items.forEachIndexed { i, item ->
                     val on = i == selected
                     Column(
-                        Modifier.weight(1f).fillMaxHeight().selectable(selected = on, role = Role.Tab) {
+                        Modifier.weight(1f).fillMaxHeight().selectable(selected = on, role = Role.Tab, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
                             if (!on) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelect(i)
                         },
@@ -212,7 +212,17 @@ fun GlassPillNav(
 fun GlassRoundButton(backdrop: GlassBackdrop, style: GlassStyle, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
         Modifier.size(GlassNavHeight).glass(backdrop, style, CircleShape)
-            .selectable(selected = false, role = Role.Button, onClick = onClick),
+            .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
+}
+
+/** No press ripple or grey flash anywhere: touches are answered by haptics and the sliding capsule instead. */
+object NoIndication : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
+        object : Modifier.Node(), androidx.compose.ui.node.DrawModifierNode {
+            override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() { drawContent() }
+        }
+    override fun equals(other: Any?) = other === this
+    override fun hashCode() = -1
 }

@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
             val scheme = if (th.dark) darkColorScheme(background = th.bg, surface = Color(0xFF383838))
             else lightColorScheme(background = th.bg, surface = Color.White)
             MaterialTheme(colorScheme = scheme) {
-                CompositionLocalProvider(LocalTh provides th) {
+                CompositionLocalProvider(LocalTh provides th, androidx.compose.foundation.LocalIndication provides NoIndication) {
                     BackHandler(settingsOpen) { settingsOpen = false }
                     if (settingsOpen) SettingsScreen(
                         s = cfg, onChange = ::update, tokenSaved = tokenSaved, dob = Store.dob(this),

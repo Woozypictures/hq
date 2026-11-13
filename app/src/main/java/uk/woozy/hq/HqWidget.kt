@@ -108,15 +108,13 @@ class HqWidget : AppWidgetProvider() {
             val small = tp(11.5f, TXT3)
 
             // Date, weather, countdowns, steps and calories already sit in other widgets, so this card shows what they don't:
-            // what to lock in, what is waiting on you, the top task, the next event and last night's sleep.
+            // what to lock in and replies due (left), today's workout from Woozy Fit (right), the top task, the next event and last night's sleep.
             val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
             val mail = s.feed?.optJSONArray("emails")?.length() ?: 0
-            val wait = s.feed?.optJSONArray("waiting_on_others")?.length() ?: 0
             val lockTxt = when { s.tasks == null -> ""; lock == 0 -> "Nothing to lock in"; lock == 1 -> "1 to lock in"; else -> "$lock to lock in" }
-            val waitParts = listOfNotNull(
-                if (mail > 0) (if (mail == 1) "1 reply due" else "$mail replies due") else null,
-                if (wait > 0) "$wait waiting" else null)
-            val waitTxt = waitParts.joinToString(" · ")
+            val mailTxt = if (mail > 0) (if (mail == 1) "1 reply due" else "$mail replies due") else ""
+            val leftTxt = listOf(lockTxt, mailTxt).filter { it.isNotEmpty() }.joinToString(" · ")
+            val waitTxt = s.fit?.workoutToday?.takeIf { it.isNotBlank() }?.let { clean(it) } ?: ""
             val sleepTxt = s.health?.sleepMin?.takeIf { it > 0 }?.let { "Slept ${Fmt.duration(it)}" } ?: ""
 
             val gap1 = (if (compact) 5f else 7f) * d
@@ -128,7 +126,7 @@ class HqWidget : AppWidgetProvider() {
 
             // line 1: to lock in | replies due and waiting on others
             val wW = if (waitTxt.isEmpty()) 0f else minOf(label.measureText(waitTxt), inner * 0.5f)
-            text(lockTxt, left, y, label, inner - wW - 10 * d)
+            text(leftTxt, left, y, label, inner - wW - 10 * d)
             if (waitTxt.isNotEmpty()) text(waitTxt, right, y, label, wW, right = true)
 
             // line 2: top task
