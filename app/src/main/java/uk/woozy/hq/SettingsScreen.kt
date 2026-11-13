@@ -93,7 +93,8 @@ fun SettingsScreen(
     versionText: String, actions: SettingsActions, onBack: () -> Unit = {},
 ) {
     val th = LocalTh.current
-    var open by rememberSaveable { mutableStateOf(start.ifEmpty { "general" }) }
+    var open by rememberSaveable { mutableStateOf(start) }
+    androidx.activity.compose.BackHandler(open.isNotEmpty()) { open = "" }
     var showLicence by rememberSaveable { mutableStateOf(false) }
 
     @Composable fun Chip(label: String, on: Boolean, click: () -> Unit) {
@@ -163,14 +164,15 @@ fun SettingsScreen(
     }
 
 
+    // Like Woozy Fit: a list of rows, each opening its own page. Only the open page draws its content.
     @Composable fun Section(key: String, title: String, content: @Composable () -> Unit) {
-        val isOpen = open == key
-        Column(Modifier.fillMaxWidth().card(18.dp)) {
-            Row(Modifier.fillMaxWidth().clickable { open = if (isOpen) "" else key }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                T(title, 16.sp, th.fg, Modifier.weight(1f), weight = FontWeight.Bold)
-                T(if (isOpen) "Hide" else "Show", 12.sp, th.muted, caps = true)
+        if (open.isEmpty()) {
+            Row(Modifier.fillMaxWidth().card(18.dp).clickable { open = key }.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                T(title, 16.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold)
+                T("\u203A", 22.sp, th.muted)
             }
-            if (isOpen) Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) { content() }
+        } else if (open == key) {
+            Column(Modifier.fillMaxWidth().card(18.dp).padding(16.dp)) { content() }
         }
     }
 
@@ -209,11 +211,11 @@ fun SettingsScreen(
 
     Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = { if (open.isNotEmpty()) open = "" else onBack() }), contentAlignment = Alignment.Center) {
                 Icon(BACK_ARROW, contentDescription = "Back", tint = th.fg, modifier = Modifier.size(24.dp))
             }
             Spacer(Modifier.width(8.dp))
-            T("Settings", 26.sp, th.fg, Modifier.weight(1f), weight = FontWeight.Bold)
+            T(PAGE_TITLES[open] ?: "Settings", 26.sp, th.fg, Modifier.weight(1f), weight = FontWeight.Bold)
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
@@ -387,8 +389,8 @@ fun SettingsScreen(
                     T(actions.licenseText(), 10.sp, th.muted)
                 }
             }
-            // About is always open: who made it, the version, and the socials.
-            Column(Modifier.fillMaxWidth().card(18.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // About shows on the list page: who made it, the version, and the socials.
+            if (open.isEmpty()) Column(Modifier.fillMaxWidth().card(18.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 T("About", 16.sp, th.fg, weight = FontWeight.Bold)
                 T("Created by Woozypictures", 14.sp, th.fg)
                 T("App version: " + versionText.substringBefore(" ("), 14.sp, th.muted)
@@ -399,6 +401,8 @@ fun SettingsScreen(
         }
     }
 }
+
+val PAGE_TITLES = mapOf("general" to "Display", "profile" to "You and targets", "dashboard" to "Home cards", "connections" to "Data and connections", "notifications" to "Notifications", "advanced" to "Advanced")
 
 /** Woozypictures socials, shown in About in every app. */
 val SOCIALS = listOf(
