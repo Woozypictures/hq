@@ -99,6 +99,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.unit.sp
@@ -408,7 +409,7 @@ class MainActivity : ComponentActivity() {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
-                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), 32.sp, th.fg, weight = FontWeight.Bold, caps = true)
+                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
                 T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "", 11.sp, th.muted, caps = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -903,8 +904,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Line(title: String, sub: String? = null, onClick: (() -> Unit)? = null) {
         val th = LocalTh.current
-        Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp)) {
-            T(title, 14.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
+        Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = if (th.flat) 10.dp else 8.dp)) {
+            T(title, 15.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
             if (sub != null) T(sub, 11.sp, th.muted, maxLines = 2)
         }
     }
@@ -1510,9 +1511,9 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // The title itself is the link when there is somewhere to go. No side labels.
-            T(title, if (th.glass) 13.sp else 18.sp, if (th.glass) th.muted else th.fg,
+            T(title, if (th.glass) 13.sp else if (th.flat) 20.sp else 18.sp, if (th.glass) th.muted else th.fg,
                 Modifier.fillMaxWidth().then(if (onLink != null) Modifier.clickable { onLink() } else Modifier).padding(vertical = if (onLink != null) 4.dp else 0.dp),
-                weight = FontWeight.Bold, caps = true)
+                weight = if (th.flat) FontWeight.SemiBold else FontWeight.Bold, caps = true, tracking = if (th.flat) (-0.2).sp else TextUnit.Unspecified)
             content()
         }
     }

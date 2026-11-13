@@ -38,6 +38,8 @@ internal class Th(
     val bg: Color, val panel: Color, val fg: Color, val muted: Color, val hair: Color,
     val ok: Color, val warn: Color, val amber: Color,
     val tab: List<Color>, val onTab: Color,
+    /** Flat surfaces: tonal panels with no outline or tint (the Woozy look). */
+    val flat: Boolean = false,
 )
 
 internal val HQ = Th(
@@ -58,13 +60,13 @@ internal val WOOZY = Th(
     dark = false, glass = false,
     bg = Color(0xFFF4F1EA), panel = Color(0xFFFFFFFF), fg = Color(0xFF141414), muted = Color(0xFF6B675F),
     hair = Color(0x1A141414), ok = Color(0xFF2D6A3A), warn = Color(0xFFB3401A), amber = Color(0xFFA26A12),
-    tab = List(5) { Color(0xFF2D5A34) }, onTab = Color.White,
+    tab = List(5) { Color(0xFF2D5A34) }, onTab = Color.White, flat = true,
 )
 internal val WOOZY_DARK = Th(
     dark = true, glass = false,
     bg = Color(0xFF0E0F0E), panel = Color(0xFF181A18), fg = Color(0xFFF2F1EC), muted = Color(0xFF9A9A92),
     hair = Color(0x1FFFFFFF), ok = Color(0xFF8FD18F), warn = Color(0xFFFF8A7A), amber = Color(0xFFE8C26A),
-    tab = List(5) { Color(0xFFC8F25A) }, onTab = Color(0xFF10140A),
+    tab = List(5) { Color(0xFFC8F25A) }, onTab = Color(0xFF10140A), flat = true,
 )
 internal val LocalTh = staticCompositionLocalOf { WOOZY }
 
@@ -72,12 +74,13 @@ internal val LocalTh = staticCompositionLocalOf { WOOZY }
 internal fun T(
     text: String, size: TextUnit, color: Color, modifier: Modifier = Modifier,
     weight: FontWeight = FontWeight.Normal, maxLines: Int = Int.MAX_VALUE, center: Boolean = false, caps: Boolean = false,
+    tracking: TextUnit = TextUnit.Unspecified,
 ) {
     val th = LocalTh.current
     Text(
         if (caps && th.glass) text.uppercase() else text, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
         style = TextStyle(
-            fontFamily = GSans, fontSize = size, color = color, fontWeight = weight,
+            fontFamily = GSans, fontSize = size, color = color, fontWeight = weight, letterSpacing = tracking,
             textAlign = if (center) TextAlign.Center else TextAlign.Start,
             fontFeatureSettings = "tnum", // tabular numerals so figures and times line up
         ),
@@ -89,7 +92,9 @@ internal fun T(
 internal fun Modifier.card(r: Dp, tint: Color? = null): Modifier {
     val th = LocalTh.current
     val shape = RoundedCornerShape(r)
-    return if (th.glass) {
+    return if (th.flat) {
+        this.clip(shape).background(th.panel)
+    } else if (th.glass) {
         this.clip(shape)
             .background(Brush.horizontalGradient(listOf(Color(0x0EFFFFFF), Color(0x37FFFFFF))))
             .border(1.dp, Brush.horizontalGradient(listOf(Color(0x3AFFFFFF), Color(0x60FFFFFF))), shape)
