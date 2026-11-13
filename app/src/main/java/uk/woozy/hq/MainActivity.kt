@@ -1030,7 +1030,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun PlanCard(s: Snapshot) {
         val h = s.feed?.optJSONObject("health")
-        val plan = h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" } ?: s.fit?.workoutToday
+        val plan = s.fit?.workoutToday ?: h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" }
         val hint = h?.optString("hint")?.takeIf { it.isNotEmpty() && !(s.health != null && it.contains("Health Connect", true)) }
         if (plan == null && hint == null) return
         Section("Training plan", "Woozy Fit", { openFit() }) {

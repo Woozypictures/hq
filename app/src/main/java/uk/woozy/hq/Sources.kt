@@ -338,7 +338,7 @@ object HealthSrc {
         } else null
 
         val rhr = if (has(RestingHeartRateRecord::class)) hc.readRecords(ReadRecordsRequest(
-            RestingHeartRateRecord::class, TimeRangeFilter.between(now.minus(Duration.ofDays(3)), now),
+            RestingHeartRateRecord::class, TimeRangeFilter.between(now.minus(Duration.ofDays(7)), now),
             ascendingOrder = false, pageSize = 1)).records.firstOrNull()?.beatsPerMinute else null
 
         val weight = if (has(WeightRecord::class)) hc.readRecords(ReadRecordsRequest(
