@@ -3,6 +3,8 @@ package uk.woozy.hq
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -173,6 +175,35 @@ fun SettingsScreen(
         Box(Modifier.padding(vertical = 4.dp)) { Chip(label, false, click) }
     }
 
+
+    @Composable fun SchemePicker(cur: String, pick: (String) -> Unit) {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            T("Colour scheme", 13.sp, th.muted, weight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                THEME_NAMES.forEach { (id, name) ->
+                    val t = themeFor(id)
+                    val on = id == cur
+                    Column(Modifier.width(88.dp).clickable { pick(id) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            Modifier.width(88.dp).height(64.dp).clip(RoundedCornerShape(12.dp)).background(t.bg)
+                                .border(if (on) 2.dp else 1.dp, if (on) th.fg else th.hair, RoundedCornerShape(12.dp)).padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(5.dp)).background(t.tab[0]))
+                            Box(Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(5.dp)).background(t.panel).border(1.dp, t.hair, RoundedCornerShape(5.dp)))
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                t.tab.take(5).forEach { Box(Modifier.size(5.dp).clip(CircleShape).background(it)) }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        T(name, 11.sp, if (on) th.fg else th.muted, weight = if (on) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, center = true)
+                    }
+                }
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             T("Settings", 26.sp, th.fg, Modifier.weight(1f), weight = FontWeight.Bold)
@@ -184,16 +215,9 @@ fun SettingsScreen(
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Section("profile", "Profile") {
-                T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in HQ Fit on the next refresh.", 13.sp, th.muted)
-                TextField("Name", actions.name(), "Name") { actions.saveName(it) }
-                TextField("Height (cm)", actions.height(), "e.g. 175") { actions.saveHeight(it) }
-                T("Weights are kilograms throughout. Both settings stay on this phone.", 13.sp, th.muted)
-            }
-
-            Section("general", "General") {
+            Section("general", "Display") {
                 Opts("Appearance", listOf("system" to "Match phone", "light" to "Light", "dark" to "Dark"), s.appearance) { onChange(s.copy(appearance = it)) }
-                Opts("Colour scheme", THEME_NAMES, s.theme) { onChange(s.copy(theme = it)) }
+                SchemePicker(s.theme) { onChange(s.copy(theme = it)) }
                 Opts("Temperature", listOf("C" to "Celsius", "F" to "Fahrenheit"), s.tempUnit) { onChange(s.copy(tempUnit = it)) }
                 Opts("Weight", listOf("kg" to "kg", "lb" to "lb", "st" to "st + lb"), s.weightUnit) { onChange(s.copy(weightUnit = it)) }
                 Opts("Distance (saved for later)", listOf("km" to "km", "mi" to "miles"), s.distanceUnit) { onChange(s.copy(distanceUnit = it)) }
@@ -204,15 +228,23 @@ fun SettingsScreen(
                 Opts("Timezone", ZONES.map { it to (if (it == "device") "Device" else it.substringAfter('/').replace('_', ' ')) }, s.timezone) { onChange(s.copy(timezone = it)) }
             }
 
-            Section("health", "Health targets") {
+
+            Section("profile", "You and targets") {
+                T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in HQ Fit on the next refresh.", 13.sp, th.muted)
+                TextField("Name", actions.name(), "Name") { actions.saveName(it) }
+                TextField("Height (cm)", actions.height(), "e.g. 175") { actions.saveHeight(it) }
+                T("Weights are kilograms throughout. Both settings stay on this phone.", 13.sp, th.muted)
+                Spacer(Modifier.height(8.dp))
+                T("Targets", 13.sp, th.muted, weight = FontWeight.Medium)
+                if (snap.fit != null) T("Calories, protein, carbs, fat and water come from HQ Fit. Open HQ Fit > Settings > Targets to change them.", 12.sp, th.muted)
                 NumField("Daily steps", s.stepsTarget, "steps") { onChange(s.copy(stepsTarget = it)) }
                 NumField("Sleep", s.sleepTargetMin / 60, "hours", "Whole hours") { onChange(s.copy(sleepTargetMin = it * 60)) }
-                NumField("Calories", s.caloriesTarget, "kcal") { onChange(s.copy(caloriesTarget = it)) }
-                NumField("Protein", s.proteinTarget, "g") { onChange(s.copy(proteinTarget = it)) }
-                NumField("Net carbs", s.carbsTarget, "g") { onChange(s.copy(carbsTarget = it)) }
-                NumField("Fat", s.fatTarget, "g") { onChange(s.copy(fatTarget = it)) }
-                NumField("Fibre", s.fibreTarget, "g") { onChange(s.copy(fibreTarget = it)) }
-                NumField("Water", s.waterTargetMl, "ml", "Saved only. HQ doesn't read water yet") { onChange(s.copy(waterTargetMl = it)) }
+                if (snap.fit == null) NumField("Calories", s.caloriesTarget, "kcal") { onChange(s.copy(caloriesTarget = it)) }
+                if (snap.fit == null) NumField("Protein", s.proteinTarget, "g") { onChange(s.copy(proteinTarget = it)) }
+                if (snap.fit == null) NumField("Net carbs", s.carbsTarget, "g") { onChange(s.copy(carbsTarget = it)) }
+                if (snap.fit == null) NumField("Fat", s.fatTarget, "g") { onChange(s.copy(fatTarget = it)) }
+                if (snap.fit == null) NumField("Fibre", s.fibreTarget, "g") { onChange(s.copy(fibreTarget = it)) }
+                if (snap.fit == null) NumField("Water", s.waterTargetMl, "ml", "Saved only. HQ doesn't read water yet") { onChange(s.copy(waterTargetMl = it)) }
                 NumField("Weigh-ins per week", s.weighInsPerWeek, "") { onChange(s.copy(weighInsPerWeek = it)) }
                 T("Health Connect and Cronometer don't share targets, so these are set here (calories, protein, carbs and fat start from your Cronometer targets). Leave one empty and HQ shows the measurement without a target. For tracking only, not medical advice.", 12.sp, th.muted)
                 Spacer(Modifier.height(8.dp))
@@ -274,10 +306,20 @@ fun SettingsScreen(
                     Toggle("Show $name", null, k !in s.homeHidden) { on -> onChange(s.copy(homeHidden = if (on) s.homeHidden - k else s.homeHidden + k)) }
                     Toggle("$name as wide card", null, k in s.homeWide) { on -> onChange(s.copy(homeWide = if (on) s.homeWide + k else s.homeWide - k)) }
                 }
+                Btn("Quick glance layout") { onChange(s.copy(homeOrder = GLANCE_ORDER + HOME_CARDS.filter { it !in GLANCE_ORDER }, homeHidden = HOME_CARDS.toSet() - GLANCE_ORDER.toSet(), homeWide = emptySet())) }
                 Btn("Reset order") { onChange(s.copy(homeOrder = HOME_CARDS, homeHidden = emptySet(), homeWide = emptySet())) }
             }
 
-            Section("refresh", "Refresh") {
+
+            Section("connections", "Data and connections") {
+                T(if (tokenSaved) "Notion token saved" else "No Notion token yet", 14.sp, if (tokenSaved) th.ok else th.warn, weight = FontWeight.SemiBold)
+                TextField(if (tokenSaved) "Replace Notion token" else "Notion token", "", "Paste token (ntn_...)", secret = true) { if (it.isNotBlank()) actions.saveToken(it) }
+                TextField("Birthday (for the Life bar)", dob, "YYYY-MM-DD") { actions.saveDob(it) }
+                Spacer(Modifier.height(4.dp))
+                Btn("Allow calendar and Health Connect") { actions.allowAccess() }
+                T("The token is stored only in the app's private storage on this phone.", 12.sp, th.muted)
+                Spacer(Modifier.height(10.dp))
+                T("Refresh", 13.sp, th.muted, weight = FontWeight.Medium)
                 Toggle("Refresh in the background", "Android runs this when it chooses, so timings are approximate.", s.autoRefresh) { onChange(s.copy(autoRefresh = it)) }
                 Opts("Every", INTERVALS.map { it to (if (it < 60) "$it min" else "${it / 60} h") }.map { it.first.toString() to it.second }, s.intervalMin.toString()) {
                     onChange(s.copy(intervalMin = it.toInt()))
@@ -299,14 +341,6 @@ fun SettingsScreen(
                 Toggle("Source connection problems", null, s.nSources) { onChange(s.copy(nSources = it)) }
             }
 
-            Section("connections", "Connections") {
-                T(if (tokenSaved) "Notion token saved" else "No Notion token yet", 14.sp, if (tokenSaved) th.ok else th.warn, weight = FontWeight.SemiBold)
-                TextField(if (tokenSaved) "Replace Notion token" else "Notion token", "", "Paste token (ntn_...)", secret = true) { if (it.isNotBlank()) actions.saveToken(it) }
-                TextField("Birthday (for the Life bar)", dob, "YYYY-MM-DD") { actions.saveDob(it) }
-                Spacer(Modifier.height(4.dp))
-                Btn("Allow calendar and Health Connect") { actions.allowAccess() }
-                T("The token is stored only in the app's private storage on this phone.", 12.sp, th.muted)
-            }
 
             Section("advanced", "Advanced") {
                 T("Version $versionText", 14.sp, th.fg, weight = FontWeight.Medium)

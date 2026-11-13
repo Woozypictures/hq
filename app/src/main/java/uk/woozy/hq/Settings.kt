@@ -12,6 +12,8 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 val HOME_CARDS = listOf("brief", "headsup", "tasks", "since", "waiting", "hints", "vitals", "calories", "events", "countdowns", "feed", "weather", "steps", "sleep", "rhr")
+/** The quick-glance Home: the morning view without the cards other widgets and tabs already cover. */
+val GLANCE_ORDER = listOf("brief", "headsup", "tasks", "events", "countdowns", "since")
 val HOME_NAMES = mapOf(
     "brief" to "Morning brief and quote", "headsup" to "Heads up", "since" to "Since yesterday", "waiting" to "Waiting on others", "hints" to "Connect hints",
     "tasks" to "Priority tasks", "vitals" to "Steps, sleep and heart rate (small cards)", "calories" to "Calories and macros",
@@ -51,7 +53,7 @@ data class Settings(
     val weighInsPerWeek: Int = 0,
     val healthHidden: Set<String> = emptySet(),
     val homeOrder: List<String> = HOME_CARDS,
-    val homeHidden: Set<String> = emptySet(),
+    val homeHidden: Set<String> = HOME_CARDS.toSet() - GLANCE_ORDER.toSet(),
     val tabOrder: Map<String, List<String>> = emptyMap(),
     val autoRefresh: Boolean = true,
     val intervalMin: Int = 30,
