@@ -112,7 +112,7 @@ class HqWidget : AppWidgetProvider() {
             val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
             val mail = s.feed?.optJSONArray("emails")?.length() ?: 0
             val wait = s.feed?.optJSONArray("waiting_on_others")?.length() ?: 0
-            val lockTxt = when { s.tasks == null -> ""; lock == 0 -> "Nothing to lock in"; lock == 1 -> "1 to lock in" else -> "$lock to lock in" }
+            val lockTxt = when { s.tasks == null -> ""; lock == 0 -> "Nothing to lock in"; lock == 1 -> "1 to lock in"; else -> "$lock to lock in" }
             val waitParts = listOfNotNull(
                 if (mail > 0) (if (mail == 1) "1 reply due" else "$mail replies due") else null,
                 if (wait > 0) "$wait waiting" else null)
