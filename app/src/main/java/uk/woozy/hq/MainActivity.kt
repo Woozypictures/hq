@@ -699,6 +699,11 @@ class MainActivity : ComponentActivity() {
                 "events" -> Section("Upcoming events", "Open", { openCalendar() }) { EventsPanel(s) }
                 "countdowns" -> CountdownRow(s)
                 "feed" -> FeedSection(s)
+                "brief" -> BriefCard(s)
+                "headsup" -> HeadsUpCard(s)
+                "since" -> SinceCard(s)
+                "waiting" -> WaitingCard(s)
+                "hints" -> HintsCard(s)
                 "weather" -> WeatherCard(s)
             }
         }
@@ -708,8 +713,11 @@ class MainActivity : ComponentActivity() {
     private fun LifeTab(s: Snapshot, sub: String) {
         val tc = LocalTh.current.tab[1]
         if (sub.isNotEmpty()) { Links.LIFE_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
-        Rearrange("life", listOf("progress", "flat", "admin")) { k ->
+        Rearrange("life", listOf("progress", "flat", "money", "inspired", "prod", "admin")) { k ->
             when (k) {
+                "money" -> MoneyCard(s, tc)
+                "inspired" -> InspiredCard(s)
+                "prod" -> ProdCard(s)
                 "progress" -> Section("Progress") { Panel { LifeBars(tc) } }
                 "flat" -> FlatCard(tc)
                 else -> Section("Life admin", "Open", { open(Links.LIFE) }) {
@@ -725,6 +733,7 @@ class MainActivity : ComponentActivity() {
         if (sub.isNotEmpty()) { Links.HEALTH_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
         Rearrange("health", HEALTH_CARDS + listOf("tasks"), cfg.healthHidden) { key ->
             when (key) {
+                "plan" -> PlanCard(s)
                 "steps" -> StepsCard(s) { openShealth("pedometer") }
                 "sleep" -> SleepCard(s) { openShealth("sleep") }
                 "rhr" -> RhrCard(s) { openShealth("heartrate") }
@@ -742,8 +751,9 @@ class MainActivity : ComponentActivity() {
     private fun CareerTab(s: Snapshot, sub: String) {
         val tc = LocalTh.current.tab[3]
         if (sub.isNotEmpty()) { Links.CAREER_PAGES.firstOrNull { it.first == sub }?.let { SubPageView(tc, it.first, it.second, s) }; return }
-        Rearrange("career", listOf("cima", "study")) { k ->
+        Rearrange("career", listOf("cima", "exams", "study")) { k ->
             when (k) {
+                "exams" -> ExamsCard(s, tc)
                 "cima" -> Section("CIMA") {
                     val cima = s.countdowns?.filter { it.name.contains("CIMA", true) || it.name.contains("E2", true) }
                     if (cima.isNullOrEmpty()) Panel { Muted("No CIMA date in Countdowns yet") }
@@ -767,8 +777,10 @@ class MainActivity : ComponentActivity() {
         val ig = f?.optJSONObject("instagram")
         val ytHandle = yt?.optString("handle")?.takeIf { it.isNotEmpty() } ?: "@woozypictures"
         val igHandle = ig?.optString("handle")?.takeIf { it.isNotEmpty() } ?: "woozypictures"
-        Rearrange("create", listOf("youtube", "instagram", "content")) { k ->
+        Rearrange("create", listOf("youtube", "instagram", "stats", "pipeline", "content")) { k ->
             when (k) {
+                "stats" -> StatsCard(s, tc)
+                "pipeline" -> PipelineCard(s, tc)
                 "youtube" -> Section("YouTube" + (yt?.optString("channel")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
                     if (yt == null) Panel { Muted("Stats arrive with the morning refresh") }
                     else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -889,6 +901,226 @@ class MainActivity : ComponentActivity() {
                     T("High ${Fmt.temp(w.hi)} · Low ${Fmt.temp(w.lo)} · Rain ${w.rain}%", 12.sp, th.muted, caps = true)
                 }
             }
+        }
+    }
+
+    // ---------- feed extras (additive keys from the morning task; each card hides itself when its key is missing) ----------
+
+    private fun org.json.JSONArray?.objs(): List<JSONObject> = if (this == null) emptyList() else (0 until length()).mapNotNull { optJSONObject(it) }
+    private fun org.json.JSONArray?.strs(): List<String> = if (this == null) emptyList() else (0 until length()).map { optString(it) }.filter { it.isNotEmpty() }
+
+    @Composable
+    private fun Line(title: String, sub: String? = null, onClick: (() -> Unit)? = null) {
+        val th = LocalTh.current
+        Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = 8.dp)) {
+            T(title, 14.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
+            if (sub != null) T(sub, 11.sp, th.muted, maxLines = 2)
+        }
+    }
+
+    @Composable
+    private fun BriefCard(s: Snapshot) {
+        val th = LocalTh.current
+        val f = s.feed ?: return
+        val brief = f.optString("brief")
+        val q = f.optJSONObject("quote")
+        if (brief.isEmpty() && q == null) return
+        Section("Morning brief") {
+            Panel {
+                if (brief.isNotEmpty()) Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) { T(brief, 14.sp, th.fg) }
+                if (q != null && q.optString("text").isNotEmpty()) Column(Modifier.clickable { open("https://www.brainyquote.com/quote_of_the_day") }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    T("\u201C" + q.optString("text") + "\u201D", 14.sp, th.fg, weight = FontWeight.Medium)
+                    if (q.optString("by").isNotEmpty()) T(q.optString("by"), 11.sp, th.muted, caps = true)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun HeadsUpCard(s: Snapshot) {
+        val th = LocalTh.current
+        val list = s.feed?.optJSONArray("heads_up").objs()
+        if (list.isEmpty()) return
+        Section("Heads up") {
+            list.forEach { o ->
+                val tint = when (o.optString("level")) { "bad" -> th.warn; "ok" -> th.ok; else -> th.amber }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (th.glass) Color(0x14FFFFFF) else lerp(th.panel, tint, 0.16f)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    T(o.optString("text"), 14.sp, th.fg)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun SinceCard(s: Snapshot) {
+        val tc = LocalTh.current.tab[0]
+        val list = s.feed?.optJSONArray("since").objs()
+        if (list.isEmpty()) return
+        Section("Since yesterday") {
+            list.chunked(2).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEach { o -> Tile(o.optString("label"), o.optString("value"), o.optString("sub").takeIf { it.isNotEmpty() }, tc, Modifier.weight(1f)) }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun WaitingCard(s: Snapshot) {
+        val list = s.feed?.optJSONArray("waiting_on_others").objs()
+        if (list.isEmpty()) return
+        Section("Waiting on others") {
+            Panel {
+                list.take(5).forEach { o ->
+                    Line(o.optString("subject"), "To " + o.optString("to") + " \u00B7 " + o.optInt("days") + " days") { open(o.optString("url").ifEmpty { "https://mail.google.com/" }) }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun HintsCard(s: Snapshot) {
+        val list = s.feed?.optJSONArray("connect_hints").strs()
+        if (list.isEmpty()) return
+        Section("Connect to unlock") { Panel { list.forEach { Line(it) } } }
+    }
+
+    @Composable
+    private fun PlanCard(s: Snapshot) {
+        val h = s.feed?.optJSONObject("health")
+        val plan = h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" } ?: s.fit?.workoutToday
+        val hint = h?.optString("hint")?.takeIf { it.isNotEmpty() }
+        if (plan == null && hint == null) return
+        Section("Training plan", "HQ Fit", { openFit() }) {
+            Panel {
+                if (plan != null) Line("Today: $plan", s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }) { openFit() }
+                if (hint != null) Line(hint)
+            }
+        }
+    }
+
+    @Composable
+    private fun ExamsCard(s: Snapshot, tc: Color) {
+        val f = s.feed ?: return
+        val exams = f.optJSONArray("cima").objs()
+        val m = f.optJSONObject("cima_modules")
+        if (exams.isEmpty() && m == null) return
+        Section("CIMA exams and modules") {
+            if (exams.isNotEmpty()) Panel {
+                exams.forEach { o ->
+                    val d = o.optInt("days_to_start")
+                    val note = if (d <= 0) "Start revising now (was " + o.optString("start_by") + ")" else "Start revising in $d days (" + o.optString("start_by") + ")"
+                    Line(o.optString("event") + " \u00B7 " + o.optString("date"), note)
+                }
+            }
+            if (m != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile("Not started", m.optInt("not_started").toString(), null, tc, Modifier.weight(1f))
+                Tile("Tricky", m.optInt("tricky").toString(), null, tc, Modifier.weight(1f))
+                Tile("Getting there", m.optInt("getting_there").toString(), null, tc, Modifier.weight(1f))
+                Tile("Confident", m.optInt("confident").toString(), null, tc, Modifier.weight(1f))
+            }
+            val re = m?.optJSONArray("retest").strs()
+            if (re.isNotEmpty()) Panel { Line("Re-test today", re.joinToString(", ")) }
+        }
+    }
+
+    @Composable
+    private fun PipelineCard(s: Snapshot, tc: Color) {
+        val c = s.feed?.optJSONObject("content") ?: return
+        val prog = c.optJSONArray("in_progress").objs()
+        val queue = c.optJSONArray("queue").objs()
+        if (prog.isEmpty() && queue.isEmpty()) return
+        Section("Video pipeline", "Notion", { open(Links.CREATE_PAGES.first().second) }) {
+            if (prog.isNotEmpty()) Panel {
+                prog.forEach { o -> Line(o.optString("title"), o.optString("status") + (o.optString("publish").takeIf { it.isNotEmpty() && it != "null" }?.let { " \u00B7 publish $it" } ?: "")) }
+            }
+            if (queue.isNotEmpty()) Panel {
+                queue.forEach { o -> Line(o.optString("title"), "Posting " + o.optString("publish")) }
+            }
+        }
+    }
+
+    @Composable
+    private fun StatsCard(s: Snapshot, tc: Color) {
+        val th = LocalTh.current
+        val c = s.feed?.optJSONObject("content_stats") ?: return
+        val fol = c.optJSONObject("followers")
+        val views = c.optJSONObject("views")
+        val top = c.optJSONArray("top_posts").objs()
+        val bt = c.optJSONObject("best_time")
+        if (fol == null && views == null && top.isEmpty() && bt == null) return
+        Section("Last week") {
+            val tiles = mutableListOf<Triple<String, String, String?>>()
+            listOf("instagram" to "Instagram", "youtube" to "YouTube").forEach { (k, n) ->
+                fol?.optJSONObject(k)?.let { o -> tiles.add(Triple("$n followers", "+" + o.optInt("gained") + " / -" + o.optInt("lost"), "gained / lost")) }
+                views?.optJSONObject(k)?.let { o -> tiles.add(Triple("$n views", nf.format(o.optLong("this")), "last week was " + nf.format(o.optLong("prev")))) }
+            }
+            tiles.chunked(2).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEach { t -> Tile(t.first, t.second, t.third, tc, Modifier.weight(1f)) }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            if (top.isNotEmpty()) Panel {
+                top.take(3).forEach { o -> Line(o.optString("title"), nf.format(o.optLong("views")) + " views \u00B7 " + o.optString("why")) { o.optString("url").takeIf { it.startsWith("http") }?.let { u -> open(u) } } }
+            }
+            if (bt != null) Panel {
+                listOf("instagram" to "Instagram", "youtube" to "YouTube").forEach { (k, n) ->
+                    val l = bt.optJSONArray(k).strs()
+                    if (l.isNotEmpty()) Line("Best time to post \u00B7 $n", l.joinToString(", "))
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun MoneyCard(s: Snapshot, tc: Color) {
+        val m = s.feed?.optJSONObject("money") ?: return
+        val goals = m.optJSONArray("goals").objs()
+        val ren = m.optJSONArray("renewals").objs()
+        if (goals.isEmpty() && ren.isEmpty()) return
+        Section("Money", "Notion", { open(Links.LIFE_PAGES[1].second) }) {
+            if (goals.isNotEmpty()) Panel {
+                goals.forEach { o ->
+                    val t = o.optDouble("target"); val sv = o.optDouble("saved")
+                    val pct = if (t > 0) (sv / t * 100).toInt() else 0
+                    Line(o.optString("goal"), "\u00A3" + nf.format(sv.toLong()) + " of \u00A3" + nf.format(t.toLong()) + " (" + pct + "%) \u00B7 \u00A3" + nf.format(o.optLong("per_month")) + " a month")
+                }
+            }
+            if (ren.isNotEmpty()) Panel {
+                ren.forEach { o -> Line(o.optString("item"), "Due " + o.optString("due") + " \u00B7 " + o.optInt("days_left") + " days \u00B7 " + o.optString("status")) }
+            }
+        }
+    }
+
+    @Composable
+    private fun InspiredCard(s: Snapshot) {
+        val l = s.feed?.optJSONObject("life")?.optJSONArray("inspired").objs()
+        if (l.isEmpty()) return
+        Section("Get inspired") { Panel { l.forEach { Line(it.optString("idea"), it.optString("kind").takeIf { k -> k.isNotEmpty() }) } } }
+    }
+
+    @Composable
+    private fun ProdCard(s: Snapshot) {
+        val p = s.feed?.optJSONObject("productivity") ?: return
+        val tc = LocalTh.current.tab[1]
+        val wins = p.optJSONArray("wins").objs()
+        val docs = p.optJSONArray("docs").objs()
+        val parking = p.optJSONArray("parking").strs()
+        val tb = p.optInt("time_back_min")
+        if (tb == 0 && wins.isEmpty() && docs.isEmpty() && parking.isEmpty()) return
+        Section("Productivity") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile("Time back", Fmt.duration(tb.toLong()), "this week", tc, Modifier.weight(1f))
+                Tile("Wins", wins.size.toString(), "this week", tc, Modifier.weight(1f))
+            }
+            if (wins.isNotEmpty()) Panel { wins.forEach { Line(it.optString("what")) } }
+            if (docs.isNotEmpty()) Panel {
+                docs.forEach { o -> Line(o.optString("name"), o.optString("group")) { o.optString("link").takeIf { it.startsWith("http") }?.let { u -> open(u) } } }
+            }
+            if (parking.isNotEmpty()) Panel { parking.forEach { Line(it) } }
         }
     }
 

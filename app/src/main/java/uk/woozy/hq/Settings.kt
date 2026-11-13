@@ -11,14 +11,16 @@ import java.time.temporal.TemporalAccessor
 import java.util.Locale
 import kotlin.math.roundToInt
 
-val HOME_CARDS = listOf("tasks", "vitals", "calories", "events", "countdowns", "feed", "weather", "steps", "sleep", "rhr")
+val HOME_CARDS = listOf("brief", "headsup", "tasks", "since", "waiting", "hints", "vitals", "calories", "events", "countdowns", "feed", "weather", "steps", "sleep", "rhr")
 val HOME_NAMES = mapOf(
+    "brief" to "Morning brief and quote", "headsup" to "Heads up", "since" to "Since yesterday", "waiting" to "Waiting on others", "hints" to "Connect hints",
     "tasks" to "Priority tasks", "vitals" to "Steps, sleep and heart rate (small cards)", "calories" to "Calories and macros",
     "steps" to "Steps (wide card)", "sleep" to "Sleep (wide card)", "rhr" to "Resting heart rate (wide card)",
     "events" to "Upcoming events", "countdowns" to "Countdowns", "feed" to "HQ Feed", "weather" to "Weather",
 )
-val HEALTH_CARDS = listOf("steps", "sleep", "rhr", "weight", "nutrition", "fitness", "activity", "weekly")
+val HEALTH_CARDS = listOf("plan", "steps", "sleep", "rhr", "weight", "nutrition", "fitness", "activity", "weekly")
 val HEALTH_NAMES = mapOf(
+    "plan" to "Training plan and suggestion",
     "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate", "weight" to "Weight",
     "nutrition" to "Nutrition", "fitness" to "HQ Fit (workout and check-in)", "activity" to "Calories burned", "weekly" to "Weekly overview",
 )
