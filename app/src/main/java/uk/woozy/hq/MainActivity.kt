@@ -749,7 +749,16 @@ class MainActivity : ComponentActivity() {
                 "cima" -> Section("CIMA") {
                     val cima = s.countdowns?.filter { it.name.contains("CIMA", true) || it.name.contains("E2", true) }
                     if (cima.isNullOrEmpty()) Panel { Muted("No CIMA date in Countdowns yet") }
-                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    else if (LocalTh.current.flat) {
+                        val th2 = LocalTh.current
+                        cima.take(2).forEach { c ->
+                            Column(Modifier.fillMaxWidth().card(22.dp).clickable { openCountdown(c) }.padding(20.dp)) {
+                                T(c.name, 14.sp, th2.muted, weight = FontWeight.Medium)
+                                T(c.days.toString(), 64.sp, th2.fg, weight = FontWeight.Bold, tracking = (-2).sp)
+                                T("days to go", 14.sp, th2.muted)
+                            }
+                        }
+                    } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         cima.take(2).forEach { c -> Tile(c.name, c.days.toString(), "days to go", tc, Modifier.weight(1f)) { openCountdown(c) } }
                         if (cima.size == 1) Spacer(Modifier.weight(1f))
                     }
