@@ -367,9 +367,11 @@ object FitSrc {
 
     fun read(c: Context): FitSummary? {
         if (!installed(c)) return null
-        val cur = try { c.contentResolver.query(URI, null, null, null, null) }
+        fun ask() = try { c.contentResolver.query(URI, null, null, null, null) }
         catch (e: SecurityException) { throw SecurityException("HQ Fit permission not granted. Reinstall HQ after HQ Fit") }
-            ?: throw IllegalStateException("HQ Fit did not answer")
+        // The first ask can come back empty while HQ Fit is still waking up, so wait a moment and ask once more.
+        val cur = ask() ?: run { Thread.sleep(1500); ask() }
+            ?: throw IllegalStateException("Woozy Fit did not answer. Open Woozy Fit once, then pull to refresh")
         cur.use { q ->
             if (!q.moveToFirst()) throw IllegalStateException("HQ Fit data not available. Open HQ Fit once")
             fun idx(n: String) = q.getColumnIndex(n).takeIf { it >= 0 && !q.isNull(it) }
