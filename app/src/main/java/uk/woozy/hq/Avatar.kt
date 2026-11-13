@@ -9,7 +9,7 @@ import java.net.URL
 
 /**
  * The profile picture: one small square JPEG in app-private storage, taken from the icon of the
- * Notion DASHBOARD page. HQ Fit reads it through [AvatarProvider], so it is only ever changed in Notion.
+ * Notion DASHBOARD page. Woozy Fit reads it through [AvatarProvider], so it is only ever changed in Notion.
  */
 object Avatar {
     /** The DASHBOARD page whose icon is the profile picture. */

@@ -11,7 +11,7 @@ data class Health(
     val steps: Long?, val sleepMin: Long?, val restingHr: Long?,
     val activeKcal: Double?, val totalKcal: Double?, val eatenKcal: Double?, val weightKg: Double?,
 )
-/** Read-only summary from HQ Fit (uk.woozy.fit). Null fields mean the provider had no value. */
+/** Read-only summary from Woozy Fit (uk.woozy.fit). Null fields mean the provider had no value. */
 data class FitSummary(
     val date: String, val kcal: Double?, val proteinG: Double?, val netCarbsG: Double?, val fatG: Double?, val waterMl: Double?,
     val kcalTarget: Double?, val proteinTarget: Double?, val netCarbsTarget: Double?, val fatTarget: Double?,
@@ -79,7 +79,7 @@ object Store {
     fun setToken(c: Context, t: String) = prefs(c).edit().putString("token", t.trim()).apply()
     fun dob(c: Context): String = prefs(c).getString("dob", "") ?: ""
     fun setDob(c: Context, d: String) = prefs(c).edit().putString("dob", d.trim()).apply()
-    /** Profile: same name and height fields as HQ Fit's Settings > Profile. */
+    /** Profile: same name and height fields as Woozy Fit's Settings > Profile. */
     fun name(c: Context): String = prefs(c).getString("name", null)?.takeIf { it.isNotBlank() } ?: "Mahesh"
     fun setName(c: Context, v: String) = prefs(c).edit().putString("name", v.trim()).apply()
     fun heightCm(c: Context): String = prefs(c).getFloat("height", 0f).takeIf { it > 0f }?.let { if (it % 1f == 0f) it.toInt().toString() else it.toString() } ?: ""

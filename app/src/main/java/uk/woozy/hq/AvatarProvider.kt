@@ -9,7 +9,7 @@ import android.os.ParcelFileDescriptor
 import java.io.FileNotFoundException
 
 /**
- * Shares the profile picture with HQ Fit (same signing key, signature permission, read only).
+ * Shares the profile picture with Woozy Fit (same signing key, signature permission, read only).
  * `content://uk.woozy.hq.avatar/avatar`: query gives one `stamp` (modified time) row when there is a picture;
  * openFile returns the JPEG.
  */

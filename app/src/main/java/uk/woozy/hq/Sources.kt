@@ -357,7 +357,7 @@ object HealthSrc {
     }
 }
 
-/** Reads HQ Fit's signature-protected summary. Returns null when HQ Fit is not installed (not an error). */
+/** Reads Woozy Fit's signature-protected summary. Returns null when Woozy Fit is not installed (not an error). */
 object FitSrc {
     private const val PKG = "uk.woozy.fit"
     private val URI = android.net.Uri.parse("content://uk.woozy.fit.summary/today")
@@ -368,18 +368,18 @@ object FitSrc {
     fun read(c: Context): FitSummary? {
         if (!installed(c)) return null
         fun ask() = try { c.contentResolver.query(URI, null, null, null, null) }
-        catch (e: SecurityException) { throw SecurityException("HQ Fit permission not granted. Reinstall HQ after HQ Fit") }
-        // The first ask can come back empty while HQ Fit is still waking up, so wait a moment and ask once more.
+        catch (e: SecurityException) { throw SecurityException("Woozy Fit permission not granted. Reinstall HQ after Woozy Fit") }
+        // The first ask can come back empty while Woozy Fit is still waking up, so wait a moment and ask once more.
         val cur = ask() ?: run { Thread.sleep(1500); ask() }
             ?: throw IllegalStateException("Woozy Fit did not answer. Open Woozy Fit once, then pull to refresh")
         cur.use { q ->
-            if (!q.moveToFirst()) throw IllegalStateException("HQ Fit data not available. Open HQ Fit once")
+            if (!q.moveToFirst()) throw IllegalStateException("Woozy Fit data not available. Open Woozy Fit once")
             fun idx(n: String) = q.getColumnIndex(n).takeIf { it >= 0 && !q.isNull(it) }
             fun str(n: String) = idx(n)?.let { q.getString(it) }?.takeIf { it.isNotBlank() }
             fun dbl(n: String) = idx(n)?.let { i -> try { q.getDouble(i) } catch (_: Exception) { q.getString(i)?.toDoubleOrNull() } }
             fun lng(n: String) = idx(n)?.let { i -> try { q.getLong(i) } catch (_: Exception) { q.getString(i)?.toLongOrNull() } }
             val version = lng("version")?.toInt() ?: 0
-            if (version != SUPPORTED_VERSION) throw IllegalStateException("HQ Fit summary version $version is newer than HQ understands")
+            if (version != SUPPORTED_VERSION) throw IllegalStateException("Woozy Fit summary version $version is newer than HQ understands")
             val workout = str("workout_today")
             return FitSummary(
                 date = str("date") ?: "", kcal = dbl("kcal"), proteinG = dbl("protein_g"), netCarbsG = dbl("net_carbs_g"),
@@ -401,7 +401,7 @@ object FitSrc {
     private val HIST_URI = android.net.Uri.parse("content://uk.woozy.fit.summary/history")
     private val WEIGHTS_URI = android.net.Uri.parse("content://uk.woozy.fit.summary/weights")
 
-    /** HQ Fit's last 30 days of food and weights. Null when HQ Fit is not installed or has no history path (older HQ Fit). */
+    /** Woozy Fit's last 30 days of food and weights. Null when Woozy Fit is not installed or has no history path (older Woozy Fit). */
     fun readHistory(c: Context): Pair<Map<String, Pair<Double, Double>>, List<WeightPt>>? {
         if (!installed(c)) return null
         val days = HashMap<String, Pair<Double, Double>>()
@@ -422,9 +422,9 @@ object FitSrc {
     }
 
     /**
-     * Where HQ Fit has a day, its kcal and protein replace Health Connect's for that day (no double counting with Cronometer).
-     * Days HQ Fit has no entries for keep Health Connect's value, so history from before HQ Fit is not lost.
-     * Weights: from HQ Fit's first reading onwards only HQ Fit's are used, earlier ones stay as they were.
+     * Where Woozy Fit has a day, its kcal and protein replace Health Connect's for that day (no double counting with Cronometer).
+     * Days Woozy Fit has no entries for keep Health Connect's value, so history from before Woozy Fit is not lost.
+     * Weights: from Woozy Fit's first reading onwards only Woozy Fit's are used, earlier ones stay as they were.
      */
     fun overlayHistory(h: HealthHistory, fit: Pair<Map<String, Pair<Double, Double>>, List<WeightPt>>?): HealthHistory {
         if (fit == null) return h
@@ -436,7 +436,7 @@ object FitSrc {
         return h.copy(days = nd, weights = nw)
     }
 
-    /** HQ Fit owns food, water and weight. Where it answered, its values replace Health Connect's so nothing is counted twice. */
+    /** Woozy Fit owns food, water and weight. Where it answered, its values replace Health Connect's so nothing is counted twice. */
     fun overlay(h: Health?, x: HealthExtra?, f: FitSummary?): Pair<Health?, HealthExtra?> {
         if (f == null || h == null) return h to x
         val nh = h.copy(eatenKcal = f.kcal, weightKg = f.weightKg ?: h.weightKg)
@@ -487,7 +487,7 @@ object Repo {
             }
 
             val hr = health.await()
-            val fit = track("HQ Fit", fitR.await(), old.fit)
+            val fit = track("Woozy Fit", fitR.await(), old.fit)
             val hist = history.await()
             track<Unit>("Profile picture", avatar.await(), null)
             val hVal = track("Health", hr, old.health)

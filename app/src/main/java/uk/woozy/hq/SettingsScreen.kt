@@ -236,12 +236,12 @@ fun SettingsScreen(
 
 
             Section("profile", "You and targets") {
-                T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in HQ Fit on the next refresh.", 13.sp, th.muted)
+                T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in Woozy Fit on the next refresh.", 13.sp, th.muted)
                 TextField("Name", actions.name(), "Name") { actions.saveName(it) }
                 T("Your name stays on this phone.", 13.sp, th.muted)
                 Spacer(Modifier.height(8.dp))
                 T("Targets", 13.sp, th.muted, weight = FontWeight.Medium)
-                if (snap.fit != null) T("Calories, protein, carbs, fat and water come from HQ Fit. Open HQ Fit > Settings > Targets to change them.", 12.sp, th.muted)
+                if (snap.fit != null) T("Calories, protein, carbs, fat and water come from Woozy Fit. Open Woozy Fit > Settings > Targets to change them.", 12.sp, th.muted)
                 NumField("Daily steps", s.stepsTarget, "steps") { onChange(s.copy(stepsTarget = it)) }
                 NumField("Sleep", s.sleepTargetMin / 60, "hours", "Whole hours") { onChange(s.copy(sleepTargetMin = it * 60)) }
                 if (snap.fit == null) NumField("Calories", s.caloriesTarget, "kcal") { onChange(s.copy(caloriesTarget = it)) }

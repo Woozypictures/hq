@@ -24,7 +24,7 @@ val HEALTH_CARDS = listOf("plan", "sport", "recovery", "steps", "sleep", "rhr", 
 val HEALTH_NAMES = mapOf(
     "plan" to "Training plan and suggestion", "sport" to "Workouts this week", "recovery" to "Recovery",
     "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate", "weight" to "Weight",
-    "nutrition" to "Nutrition", "fitness" to "HQ Fit (workout and check-in)", "activity" to "Calories burned", "weekly" to "Weekly overview",
+    "nutrition" to "Nutrition", "fitness" to "Woozy Fit (workout and check-in)", "activity" to "Calories burned", "weekly" to "Weekly overview",
 )
 val THEME_IDS = setOf("hq", "frosted", "colourful", "standard", "calm", "seventies", "japandi", "riviera", "editorial", "notebook", "riso", "solarpunk", "bauhaus", "chrome", "digital", "noir", "athletic", "arcade")
 val INTERVALS = listOf(15, 30, 60, 120, 240, 360)

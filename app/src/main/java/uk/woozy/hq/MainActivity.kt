@@ -406,7 +406,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Tap to open Settings, same as HQ Fit. The picture is the Notion DASHBOARD page icon, refreshed with everything else. Shows an M on a plain circle until there is one. */
+    /** Tap to open Settings, same as Woozy Fit. The picture is the Notion DASHBOARD page icon, refreshed with everything else. Shows an M on a plain circle until there is one. */
     @Composable
     private fun AvatarButton() {
         val th = LocalTh.current
@@ -446,7 +446,7 @@ class MainActivity : ComponentActivity() {
 
     // ---------- rearranging ----------
 
-    /** Step goal: HQ Fit's when it has one (so both apps agree), otherwise the one in Settings. */
+    /** Step goal: Woozy Fit's when it has one (so both apps agree), otherwise the one in Settings. */
     private val stepsGoal: Int get() = snap.fit?.stepsTarget?.toInt()?.takeIf { it > 0 } ?: cfg.stepsTarget
 
     private val dragHeights = mutableStateMapOf<String, Int>()
@@ -984,7 +984,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun HintsCard(s: Snapshot) {
-        val list = s.feed?.optJSONArray("connect_hints").strs()
+        val list = s.feed?.optJSONArray("connect_hints").strs().filter { !(s.health != null && it.contains("Health Connect", true)) }
         if (list.isEmpty()) return
         Section("Connect to unlock") { Panel { list.forEach { Line(it) } } }
     }
@@ -1031,9 +1031,9 @@ class MainActivity : ComponentActivity() {
     private fun PlanCard(s: Snapshot) {
         val h = s.feed?.optJSONObject("health")
         val plan = h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" } ?: s.fit?.workoutToday
-        val hint = h?.optString("hint")?.takeIf { it.isNotEmpty() }
+        val hint = h?.optString("hint")?.takeIf { it.isNotEmpty() && !(s.health != null && it.contains("Health Connect", true)) }
         if (plan == null && hint == null) return
-        Section("Training plan", "HQ Fit", { openFit() }) {
+        Section("Training plan", "Woozy Fit", { openFit() }) {
             Panel {
                 if (plan != null) Line("Today: $plan", s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }) { openFit() }
                 if (hint != null) Line(hint)
@@ -1273,14 +1273,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Workout and weekly check-in from HQ Fit. Read-only: tick the check-in boxes in HQ Fit itself. */
+    /** Workout and weekly check-in from Woozy Fit. Read-only: tick the check-in boxes in Woozy Fit itself. */
     @Composable
     private fun FitCard(s: Snapshot) {
         val th = LocalTh.current
         val f = s.fit
-        HCard("HQ Fit", { openFit() }) {
+        HCard("Woozy Fit", { openFit() }) {
             if (f == null) {
-                T(if (FitSrc.installed(this@MainActivity)) "Waiting for HQ Fit data. Pull to refresh" else "HQ Fit is not installed", 14.sp, th.muted)
+                T(if (FitSrc.installed(this@MainActivity)) "Waiting for Woozy Fit data. Pull to refresh" else "Woozy Fit is not installed", 14.sp, th.muted)
                 return@HCard
             }
             T(f.workoutToday?.let { if (f.workoutDone) "$it - done" else it } ?: "No workout planned today", 16.sp, th.fg, weight = FontWeight.SemiBold)
