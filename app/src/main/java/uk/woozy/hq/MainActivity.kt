@@ -1041,6 +1041,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** ISO dates from the feed, shown in the format chosen in Settings. */
+    private fun fd(x: String): String = runCatching { Fmt.date(java.time.LocalDate.parse(x)) }.getOrDefault(x)
+
     @Composable
     private fun ExamsCard(s: Snapshot, tc: Color) {
         val f = s.feed ?: return
@@ -1051,8 +1054,8 @@ class MainActivity : ComponentActivity() {
             if (exams.isNotEmpty()) Panel {
                 exams.forEach { o ->
                     val d = o.optInt("days_to_start")
-                    val note = if (d <= 0) "Start revising now (was " + o.optString("start_by") + ")" else "Start revising in $d days (" + o.optString("start_by") + ")"
-                    Line(o.optString("event") + " \u00B7 " + o.optString("date"), note)
+                    val note = if (d <= 0) "Start revising now (was " + fd(o.optString("start_by")) + ")" else "Start revising in $d days (" + fd(o.optString("start_by")) + ")"
+                    Line(o.optString("event") + " \u00B7 " + fd(o.optString("date")), note)
                 }
             }
             if (m != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1074,10 +1077,10 @@ class MainActivity : ComponentActivity() {
         if (prog.isEmpty() && queue.isEmpty()) return
         Section("Video pipeline", "Notion", { open(Links.CREATE_PAGES.first().second) }) {
             if (prog.isNotEmpty()) Panel {
-                prog.forEach { o -> Line(o.optString("title"), o.optString("status") + (o.optString("publish").takeIf { it.isNotEmpty() && it != "null" }?.let { " \u00B7 publish $it" } ?: "")) }
+                prog.forEach { o -> Line(o.optString("title"), o.optString("status") + (o.optString("publish").takeIf { it.isNotEmpty() && it != "null" }?.let { " \u00B7 publish ${fd(it)}" } ?: "")) }
             }
             if (queue.isNotEmpty()) Panel {
-                queue.forEach { o -> Line(o.optString("title"), "Posting " + o.optString("publish")) }
+                queue.forEach { o -> Line(o.optString("title"), "Posting " + fd(o.optString("publish"))) }
             }
         }
     }
@@ -1094,8 +1097,8 @@ class MainActivity : ComponentActivity() {
         Section("Last week") {
             val tiles = mutableListOf<Triple<String, String, String?>>()
             listOf("instagram" to "Instagram", "youtube" to "YouTube").forEach { (k, n) ->
-                fol?.optJSONObject(k)?.let { o -> tiles.add(Triple("$n followers", "+" + o.optInt("gained") + " / -" + o.optInt("lost"), "gained / lost")) }
-                views?.optJSONObject(k)?.let { o -> tiles.add(Triple("$n views", nf.format(o.optLong("this")), "last week was " + nf.format(o.optLong("prev")))) }
+                fol?.optJSONObject(k)?.let { o -> tiles.add(Triple("$n followers", if (o.isNull("gained") && o.isNull("lost")) "-" else "+" + o.optInt("gained") + " / -" + o.optInt("lost"), "gained / lost")) }
+                views?.optJSONObject(k)?.let { o -> tiles.add(Triple("$n views", if (o.isNull("this")) "-" else nf.format(o.optLong("this")), if (o.isNull("prev")) null else "last week was " + nf.format(o.optLong("prev")))) }
             }
             tiles.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1130,7 +1133,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (ren.isNotEmpty()) Panel {
-                ren.forEach { o -> Line(o.optString("item"), "Due " + o.optString("due") + " \u00B7 " + o.optInt("days_left") + " days \u00B7 " + o.optString("status")) }
+                ren.forEach { o -> Line(o.optString("item"), "Due " + fd(o.optString("due")) + " \u00B7 " + o.optInt("days_left") + " days \u00B7 " + o.optString("status")) }
             }
         }
     }
