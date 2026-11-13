@@ -240,7 +240,6 @@ fun SettingsScreen(
             Section("profile", "You and targets") {
                 T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in Woozy Fit on the next refresh.", 13.sp, th.muted)
                 TextField("Name", actions.name(), "Name") { actions.saveName(it) }
-                T("Your name stays on this phone.", 13.sp, th.muted)
                 Spacer(Modifier.height(8.dp))
                 T("Targets", 13.sp, th.muted, weight = FontWeight.Medium)
                 if (snap.fit != null) T("Calories, protein, carbs, fat and water come from Woozy Fit. Open Woozy Fit > Settings > Targets to change them.", 12.sp, th.muted)
@@ -253,7 +252,6 @@ fun SettingsScreen(
                 if (snap.fit == null) NumField("Fibre", s.fibreTarget, "g") { onChange(s.copy(fibreTarget = it)) }
                 if (snap.fit == null) NumField("Water", s.waterTargetMl, "ml", "Saved only. HQ doesn't read water yet") { onChange(s.copy(waterTargetMl = it)) }
                 NumField("Weigh-ins per week", s.weighInsPerWeek, "") { onChange(s.copy(weighInsPerWeek = it)) }
-                T("Health Connect and Cronometer don't share targets, so these are set here (calories, protein, carbs and fat start from your Cronometer targets). Leave one empty and HQ shows the measurement without a target. For tracking only, not medical advice.", 12.sp, th.muted)
                 Spacer(Modifier.height(8.dp))
                 T("Health cards to show", 13.sp, th.muted, weight = FontWeight.Medium)
                 HEALTH_CARDS.forEach { k ->
@@ -264,7 +262,6 @@ fun SettingsScreen(
             }
 
             Section("dashboard", "Home cards") {
-                T("Hold the handle and drag to reorder.", 12.sp, th.muted)
                 val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr") }
                 val cur by rememberUpdatedState(s)
                 val change by rememberUpdatedState(onChange)
@@ -324,7 +321,6 @@ fun SettingsScreen(
                 TextField("Birthday (for the Life bar)", dob, "YYYY-MM-DD") { actions.saveDob(it) }
                 Spacer(Modifier.height(4.dp))
                 Btn("Allow calendar and Health Connect") { actions.allowAccess() }
-                T("The token is stored only in the app's private storage on this phone.", 12.sp, th.muted)
                 Spacer(Modifier.height(10.dp))
                 T("Refresh", 13.sp, th.muted, weight = FontWeight.Medium)
                 Toggle("Refresh in the background", "Android runs this when it chooses, so timings are approximate.", s.autoRefresh) { onChange(s.copy(autoRefresh = it)) }
@@ -335,13 +331,10 @@ fun SettingsScreen(
                 Toggle("Keep last good data if a source fails", null, s.retainData) { onChange(s.copy(retainData = it)) }
                 Toggle("Show source problems on Home", null, s.showErrors) { onChange(s.copy(showErrors = it)) }
                 Spacer(Modifier.height(6.dp))
-                T("Morning refresh (06:43)", 13.sp, th.muted, weight = FontWeight.Medium)
-                T("The 06:43 run is a separate scheduled task that writes the HQ Feed (YouTube, Instagram, email) into Notion. It isn't an app setting, and the app can't force an exact time because Android may delay background work. The app picks the feed up on its next refresh. Manual refresh is always available.", 12.sp, th.muted)
                 Btn("Refresh now") { actions.refreshNow() }
             }
 
             Section("notifications", "Notifications") {
-                T("All off by default. Each one can fire at most once a day. No habit, step or workout nagging.", 12.sp, th.muted)
                 Toggle("Overdue tasks", null, s.nOverdue) { onChange(s.copy(nOverdue = it)) }
                 Toggle("Upcoming countdowns", "Within 3 days", s.nCountdowns) { onChange(s.copy(nCountdowns = it)) }
                 Toggle("Failed refreshes", null, s.nFailed) { onChange(s.copy(nFailed = it)) }
@@ -382,7 +375,6 @@ fun SettingsScreen(
                     Btn("Releases / updates") { actions.openReleases() }
                     Btn(if (showLicence) "Hide font licence" else "Font licence") { showLicence = !showLicence }
                 }
-                T("Updates arrive through Obtainium. Clearing cached data keeps your settings and token and never touches Notion or any other service.", 12.sp, th.muted)
                 if (showLicence) {
                     Spacer(Modifier.height(8.dp))
                     T("Google Sans, SIL Open Font License 1.1", 13.sp, th.fg, weight = FontWeight.SemiBold)
