@@ -1,7 +1,7 @@
 name: build
 on:
   push:
-    branches: [main]
+    branches: [main, design-glass-nav]
   workflow_dispatch: {}
 permissions:
   contents: write
@@ -29,7 +29,7 @@ jobs:
           export VERSION_NAME=0.${{ github.run_number }}
           gradle :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
       - name: Release
-        if: success()
+        if: success() && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.${{ github.run_number }}
@@ -44,10 +44,10 @@ jobs:
           echo "${{ job.status }} run ${{ github.run_number }} sha ${{ github.sha }}" > /tmp/l/status.txt
           git config user.name hq-bot
           git config user.email hq-bot@users.noreply.github.com
-          git checkout --orphan build-log
+          git checkout --orphan ${{ github.ref_name == 'main' && 'build-log' || 'build-log-design' }}
           git rm -rf -q . || true
           cp /tmp/l/tail.log build.log
           cp /tmp/l/status.txt status.txt
           git add build.log status.txt
           git commit -q -m "log ${{ github.run_number }}"
-          git push -f origin build-log
+          git push -f origin HEAD:${{ github.ref_name == 'main' && 'build-log' || 'build-log-design' }}

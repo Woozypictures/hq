@@ -55,6 +55,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -363,18 +366,20 @@ class MainActivity : ComponentActivity() {
         val scroll = rememberScrollState()
         LaunchedEffect(tab, sub) { scroll.scrollTo(0) }
         val s = snap
-        Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
+        val backdrop = rememberGlassBackdrop()
+        val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + GlassNavHeight + GlassNavLift
+        Box(Modifier.fillMaxSize().background(th.bg)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().glassSource(backdrop)) {
             Header(s)
-            Tabs(tab) { tab = it; sub = "" }
             val pages = when (tab) { 1 -> Links.LIFE_PAGES; 2 -> Links.HEALTH_PAGES; 3 -> Links.CAREER_PAGES; 4 -> Links.CREATE_PAGES; else -> emptyList() }
             if (pages.isNotEmpty()) Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) { SubNav(th.tab[tab], pages, sub) { sub = it } }
             @OptIn(ExperimentalMaterial3Api::class)
             PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
-                Modifier.fillMaxSize().verticalScroll(scroll).navigationBarsPadding()
+                Modifier.fillMaxSize().verticalScroll(scroll)
                     // Cards may go wide on a tablet (two columns); Notion sub-pages are text, so they stay narrower.
                     .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = if (sub.isEmpty()) 1280.dp else 760.dp)
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp + navInset),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 when (tab) {
@@ -386,6 +391,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
             }
+        }
+        GlassPillNav(
+            items = TAB_NAMES.mapIndexed { i, n -> GlassItem(n, TAB_ICONS[i]) },
+            selected = tab, onSelect = { tab = it; sub = "" },
+            backdrop = backdrop, style = remember(th) { glassStyle(th.dark, th.fg, th.muted) },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
         }
     }
 
@@ -418,29 +430,6 @@ class MainActivity : ComponentActivity() {
         ) {
             if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), "Settings", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(44.dp))
             else T(Store.name(this@MainActivity).take(1).uppercase().ifEmpty { "M" }, 17.sp, th.fg, weight = FontWeight.Bold)
-        }
-    }
-
-    @Composable
-    private fun Tabs(selected: Int, onSelect: (Int) -> Unit) {
-        val th = LocalTh.current
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TAB_NAMES.forEachIndexed { i, name ->
-                val tc = th.tab[i]
-                val on = i == selected
-                val bg = when { on -> tc; th.glass -> Color(0x14FFFFFF); else -> lerp(th.panel, tc, 0.13f) }
-                val fg = when { on -> th.onTab; th.glass -> th.muted; else -> lerp(th.fg, tc, 0.75f) }
-                Box(
-                    Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(50)).background(bg)
-                        .clickable { onSelect(i) }.padding(horizontal = 14.dp, vertical = 9.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(TAB_ICONS[i], contentDescription = null, tint = fg, modifier = Modifier.size(14.dp))
-                        T(name, 12.sp, fg, weight = FontWeight.SemiBold, maxLines = 1, center = true, caps = true)
-                    }
-                }
-            }
         }
     }
 
