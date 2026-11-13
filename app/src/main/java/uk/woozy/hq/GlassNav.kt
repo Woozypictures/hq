@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /*
  * Woozy glass: the shared floating frosted-glass navigation, one spec used by both HQ and Woozy Fit.
@@ -217,11 +218,19 @@ fun GlassRoundButton(backdrop: GlassBackdrop, style: GlassStyle, onClick: () -> 
     ) { content() }
 }
 
-/** No press ripple or grey flash anywhere: touches are answered by haptics and the sliding capsule instead. */
+/** No press ripple or grey flash anywhere: a touch is answered with a light haptic tick instead. */
 object NoIndication : androidx.compose.foundation.IndicationNodeFactory {
     override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
-        object : Modifier.Node(), androidx.compose.ui.node.DrawModifierNode {
+        object : Modifier.Node(), androidx.compose.ui.node.DrawModifierNode, androidx.compose.ui.node.CompositionLocalConsumerModifierNode {
             override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() { drawContent() }
+            override fun onAttach() {
+                coroutineScope.launch {
+                    interactionSource.interactions.collect {
+                        if (it is androidx.compose.foundation.interaction.PressInteraction.Press)
+                            currentValueOf(LocalHapticFeedback).performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                }
+            }
         }
     override fun equals(other: Any?) = other === this
     override fun hashCode() = -1
