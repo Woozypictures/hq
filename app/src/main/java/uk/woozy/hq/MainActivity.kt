@@ -1054,8 +1054,8 @@ class MainActivity : ComponentActivity() {
             if (exams.isNotEmpty()) Panel {
                 exams.forEach { o ->
                     val d = o.optInt("days_to_start")
-                    val note = if (d <= 0) "Start revising now (was " + fd(o.optString("start_by")) + ")" else "Start revising in $d days (" + fd(o.optString("start_by")) + ")"
-                    Line(o.optString("event") + " \u00B7 " + fd(o.optString("date")), note)
+                    val title = if (d <= 0) "Start revising now" else "Start revising in $d days"
+                    Line((if (exams.size > 1) o.optString("event") + ": " else "") + title, "Start date " + fd(o.optString("start_by")) + " \u00B7 exam " + fd(o.optString("date")))
                 }
             }
             if (m != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
