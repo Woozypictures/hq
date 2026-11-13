@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity() {
                     if (settingsOpen) SettingsScreen(
                         s = cfg, onChange = ::update, tokenSaved = tokenSaved, dob = Store.dob(this),
                         snap = snap, diag = diag, errlog = errlog, start = settingsStart,
-                        versionText = versionText(), actions = actions(),
+                        versionText = versionText(), actions = actions(), onBack = { settingsOpen = false },
                     ) else Screen()
                 }
             }

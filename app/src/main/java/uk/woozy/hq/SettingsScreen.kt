@@ -61,6 +61,9 @@ import androidx.compose.ui.unit.sp
 internal val HANDLE: ImageVector = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
     .addPath(pathData = addPathNodes("M3,15h18v-2L3,13v2zM3,19h18v-2L3,17v2zM3,11h18L21,9L3,9v2zM3,5v2h18L21,5L3,5z"), fill = SC(Color.Black)).build()
 
+internal val BACK_ARROW: ImageVector = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+    .addPath(pathData = addPathNodes("M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z"), fill = SC(Color.Black)).build()
+
 class SettingsActions(
     val saveToken: (String) -> Unit,
     val saveDob: (String) -> Unit,
@@ -87,7 +90,7 @@ private val ZONES = listOf("Europe/London", "Europe/Dublin", "Europe/Paris", "Am
 fun SettingsScreen(
     s: Settings, onChange: (Settings) -> Unit, tokenSaved: Boolean, dob: String,
     snap: Snapshot, diag: Map<String, SourceState>, errlog: List<ErrEntry>, start: String,
-    versionText: String, actions: SettingsActions,
+    versionText: String, actions: SettingsActions, onBack: () -> Unit = {},
 ) {
     val th = LocalTh.current
     var open by rememberSaveable { mutableStateOf(start.ifEmpty { "general" }) }
@@ -206,8 +209,11 @@ fun SettingsScreen(
 
     Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+                Icon(BACK_ARROW, contentDescription = "Back", tint = th.fg, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(8.dp))
             T("Settings", 26.sp, th.fg, Modifier.weight(1f), weight = FontWeight.Bold)
-            T("Back button to return", 11.sp, th.muted)
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
@@ -232,8 +238,7 @@ fun SettingsScreen(
             Section("profile", "You and targets") {
                 T("Your picture is the icon of the DASHBOARD page in Notion. Change it there and it updates here and in HQ Fit on the next refresh.", 13.sp, th.muted)
                 TextField("Name", actions.name(), "Name") { actions.saveName(it) }
-                TextField("Height (cm)", actions.height(), "e.g. 175") { actions.saveHeight(it) }
-                T("Weights are kilograms throughout. Both settings stay on this phone.", 13.sp, th.muted)
+                T("Your name stays on this phone.", 13.sp, th.muted)
                 Spacer(Modifier.height(8.dp))
                 T("Targets", 13.sp, th.muted, weight = FontWeight.Medium)
                 if (snap.fit != null) T("Calories, protein, carbs, fat and water come from HQ Fit. Open HQ Fit > Settings > Targets to change them.", 12.sp, th.muted)
