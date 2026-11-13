@@ -1194,8 +1194,8 @@ class MainActivity : ComponentActivity() {
         Column(modifier.heightIn(min = 96.dp).card(16.dp).clickable(onClick = onClick).padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
             T(title, 11.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
             Column {
-                T(value, 22.sp, th.fg, weight = FontWeight.Bold, maxLines = 1)
-                if (sub != null) T(sub, 11.sp, th.muted, maxLines = 1)
+                T(value, if (th.flat) 28.sp else 22.sp, th.fg, weight = FontWeight.Bold, maxLines = 1, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
+                if (sub != null) T(sub, 12.sp, th.muted, maxLines = 1)
                 if (pct != null) { Spacer(Modifier.height(6.dp)); Segments(pct, th.tab[2], 6.dp) }
             }
         }
@@ -1210,7 +1210,7 @@ class MainActivity : ComponentActivity() {
         HCard("Steps", go) {
             if (h == null) { T(healthMissing(), 14.sp, th.muted); return@HCard }
             Row(verticalAlignment = Alignment.Bottom) {
-                T(steps?.let { nf.format(it) } ?: "-", 30.sp, th.fg, weight = FontWeight.Bold)
+                T(steps?.let { nf.format(it) } ?: "-", if (th.flat) 44.sp else 30.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
                 if (target > 0) T(" / ${nf.format(target)}", 14.sp, th.muted, modifier = Modifier.padding(bottom = 4.dp))
             }
             if (target > 0 && steps != null) { Spacer(Modifier.height(8.dp)); Segments((steps.toFloat() / target).coerceIn(0f, 1f), th.tab[2], 12.dp) }
@@ -1546,7 +1546,7 @@ class MainActivity : ComponentActivity() {
         ) {
             T(label, 12.sp, if (th.glass) th.muted else lerp(th.fg, tc, 0.75f), weight = FontWeight.SemiBold, maxLines = 2, caps = true)
             Column {
-                T(value, 26.sp, th.fg, weight = FontWeight.Bold, maxLines = 1)
+                T(value, if (th.flat) 30.sp else 26.sp, th.fg, weight = FontWeight.Bold, maxLines = 1, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
                 if (sub != null) T(sub, 11.sp, th.muted, maxLines = 1, caps = true)
             }
         }
