@@ -35,7 +35,7 @@
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="HQ"
+        android:label="Woozy HQ"
         android:theme="@style/Theme.HQ">
 
         <activity
@@ -74,7 +74,7 @@
         <receiver
             android:name=".HqWidget"
             android:exported="true"
-            android:label="HQ">
+            android:label="Woozy HQ">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
