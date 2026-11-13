@@ -1517,11 +1517,10 @@ class MainActivity : ComponentActivity() {
     private fun Section(title: String, link: String? = null, onLink: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
         val th = LocalTh.current
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                T(title, if (th.glass) 13.sp else 18.sp, if (th.glass) th.muted else th.fg, Modifier.weight(1f), weight = FontWeight.Bold, caps = true)
-                if (link != null && onLink != null)
-                    T(link, 12.sp, th.muted, Modifier.clickable { onLink() }.padding(start = 12.dp, top = 4.dp, bottom = 4.dp), caps = true)
-            }
+            // The title itself is the link when there is somewhere to go. No side labels.
+            T(title, if (th.glass) 13.sp else 18.sp, if (th.glass) th.muted else th.fg,
+                Modifier.fillMaxWidth().then(if (onLink != null) Modifier.clickable { onLink() } else Modifier).padding(vertical = if (onLink != null) 4.dp else 0.dp),
+                weight = FontWeight.Bold, caps = true)
             content()
         }
     }
