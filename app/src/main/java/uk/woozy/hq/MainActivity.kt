@@ -734,6 +734,8 @@ class MainActivity : ComponentActivity() {
         Rearrange("health", HEALTH_CARDS + listOf("tasks"), cfg.healthHidden) { key ->
             when (key) {
                 "plan" -> PlanCard(s)
+                "sport" -> SportCard(s)
+                "recovery" -> RecoveryCard(s)
                 "steps" -> StepsCard(s) { openShealth("pedometer") }
                 "sleep" -> SleepCard(s) { openShealth("sleep") }
                 "rhr" -> RhrCard(s) { openShealth("heartrate") }
@@ -985,6 +987,44 @@ class MainActivity : ComponentActivity() {
         val list = s.feed?.optJSONArray("connect_hints").strs()
         if (list.isEmpty()) return
         Section("Connect to unlock") { Panel { list.forEach { Line(it) } } }
+    }
+
+    @Composable
+    private fun SportCard(s: Snapshot) {
+        val tc = LocalTh.current.tab[2]
+        val d = s.sport
+        Section("Workouts, last 7 days") {
+            if (d == null) { Panel { Muted("Allow workouts and recovery to see them here"); Box(Modifier.padding(start = 16.dp, bottom = 12.dp)) { Pill("Allow") { askHealth() } } }; return@Section }
+            val total = d.sessions.sumOf { it.min }
+            val top = d.sessions.groupBy { it.type }.maxByOrNull { e -> e.value.sumOf { it.min } }?.key
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile("Sessions", d.sessions.size.toString(), "7 days", tc, Modifier.weight(1f))
+                Tile("Active time", Fmt.duration(total), null, tc, Modifier.weight(1f))
+                Tile("Most", top ?: "-", null, tc, Modifier.weight(1f))
+            }
+            if (d.sessions.isNotEmpty()) Panel {
+                d.sessions.take(5).forEach { x ->
+                    val day = Instant.ofEpochMilli(x.start).atZone(Cfg.zone).toLocalDate()
+                    Line(x.type, Fmt.dayMonth(day) + " \u00B7 " + x.min + " min")
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RecoveryCard(s: Snapshot) {
+        val tc = LocalTh.current.tab[2]
+        val d = s.sport
+        val sleep = s.health?.sleepMin?.takeIf { it > 0 }
+        val rhr = s.health?.restingHr
+        if (d?.hrvLatest == null && sleep == null && rhr == null) return
+        Section("Recovery") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile("HRV", d?.hrvLatest?.let { "${it.toInt()} ms" } ?: "-", d?.hrvAvg7?.let { "7 day avg ${it.toInt()}" }, tc, Modifier.weight(1f))
+                Tile("Resting HR", rhr?.let { "$it" } ?: "-", "bpm", tc, Modifier.weight(1f))
+                Tile("Sleep", sleep?.let { Fmt.duration(it) } ?: "-", "last night", tc, Modifier.weight(1f))
+            }
+        }
     }
 
     @Composable

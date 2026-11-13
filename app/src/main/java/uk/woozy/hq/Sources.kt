@@ -303,6 +303,8 @@ object HealthSrc {
         HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(NutritionRecord::class),
         HealthPermission.getReadPermission(WeightRecord::class),
+        HealthPermission.getReadPermission(androidx.health.connect.client.records.ExerciseSessionRecord::class),
+        HealthPermission.getReadPermission(androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord::class),
     )
     const val BACKGROUND = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
 
@@ -475,6 +477,7 @@ object Repo {
             val events = async { runCatching { CalendarSrc.read(c) } }
             val health = async { runCatching { HealthSrc.read(c) } }
             val extra = async { runCatching { HealthExtraSrc.readExtra(c) } }
+            val sportR = async { runCatching { HealthExtraSrc.readSport(c) } }
             val fitR = async { runCatching { FitSrc.read(c) } }
             val stale = manual || System.currentTimeMillis() - (old.history?.at ?: 0) > 3 * 3_600_000L
             val history = async {
@@ -497,6 +500,7 @@ object Repo {
                 events = track("Calendar", events.await(), old.events),
                 health = hOut,
                 healthX = xOut,
+                sport = if (hr.isSuccess) (track("Workouts and recovery", sportR.await(), old.sport) ?: old.sport) else old.sport,
                 fit = fit,
                 history = if (hist == null) old.history else track("Health history", hist, old.history),
                 errors = errors.toList(),

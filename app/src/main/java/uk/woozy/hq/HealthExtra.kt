@@ -110,6 +110,28 @@ object HealthExtraSrc {
         )
     }
 
+    /** Workouts (last 7 days) and heart rate variability. Null when neither permission is granted yet. */
+    suspend fun readSport(c: Context): SportData? {
+        val (hc, g) = client(c)
+        val now = Instant.now()
+        val week = TimeRangeFilter.between(now.minus(Duration.ofDays(7)), now)
+        val ex = androidx.health.connect.client.records.ExerciseSessionRecord::class
+        val hv = androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord::class
+        if (!has(g, ex) && !has(g, hv)) return null
+        val sessions = if (has(g, ex)) hc.readRecords(ReadRecordsRequest(ex, week, ascendingOrder = false, pageSize = 100)).records.map {
+            val name = androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_INT_TO_STRING_MAP[it.exerciseType] ?: "workout"
+            Session(it.startTime.toEpochMilli(), name.replace('_', ' ').replaceFirstChar { ch -> ch.uppercase() }, Duration.between(it.startTime, it.endTime).toMinutes())
+        } else emptyList()
+        var latest: Double? = null
+        var avg: Double? = null
+        if (has(g, hv)) {
+            val recs = hc.readRecords(ReadRecordsRequest(hv, week, ascendingOrder = false, pageSize = 200)).records
+            latest = recs.firstOrNull()?.heartRateVariabilityMillis
+            avg = recs.map { it.heartRateVariabilityMillis }.takeIf { it.isNotEmpty() }?.average()
+        }
+        return SportData(System.currentTimeMillis(), sessions, latest, avg)
+    }
+
     /** Sleep uses 6pm-to-6pm windows (so a night is one day, overlaps are de-duplicated by Health Connect). */
     suspend fun readHistory(c: Context, days: Int = 30): HealthHistory {
         val (hc, g) = client(c)

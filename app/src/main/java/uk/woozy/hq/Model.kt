@@ -37,6 +37,23 @@ data class FitSummary(
             o.s("cd"), o.optBoolean("cm"), o.optBoolean("cx"), o.optBoolean("cp"), o.optLong("at"), o.d("st"))
     }
 }
+data class Session(val start: Long, val type: String, val min: Long)
+/** Workouts from the last 7 days and heart rate variability, read from Health Connect (Samsung Health). */
+data class SportData(val at: Long, val sessions: List<Session>, val hrvLatest: Double?, val hrvAvg7: Double?) {
+    fun toJson() = JSONObject().apply {
+        put("at", at); put("hl", hrvLatest ?: JSONObject.NULL); put("ha", hrvAvg7 ?: JSONObject.NULL)
+        put("s", JSONArray(sessions.map { JSONObject().put("t", it.start).put("y", it.type).put("m", it.min) }))
+    }
+    companion object {
+        fun from(o: JSONObject): SportData {
+            val a = o.optJSONArray("s") ?: JSONArray()
+            return SportData(o.optLong("at"),
+                (0 until a.length()).map { a.getJSONObject(it).let { x -> Session(x.optLong("t"), x.optString("y"), x.optLong("m")) } },
+                if (o.has("hl") && !o.isNull("hl")) o.getDouble("hl") else null,
+                if (o.has("ha") && !o.isNull("ha")) o.getDouble("ha") else null)
+        }
+    }
+}
 data class Weather(val temp: Double, val code: Int, val hi: Double, val lo: Double, val rain: Int)
 
 /** Everything the app and widget show. Any section can be null if its source failed and has never worked. */
@@ -51,6 +68,7 @@ data class Snapshot(
     val healthX: HealthExtra? = null,
     val history: HealthHistory? = null,
     val fit: FitSummary? = null,
+    val sport: SportData? = null,
     val errors: List<String> = emptyList(),
 )
 
@@ -112,6 +130,7 @@ object Store {
         s.healthX?.let { put("healthX", it.toJson()) }
         s.history?.let { put("history", it.toJson()) }
         s.fit?.let { put("fit", it.toJson()) }
+        s.sport?.let { put("sport", it.toJson()) }
         put("errors", JSONArray(s.errors))
     }
 
@@ -137,6 +156,7 @@ object Store {
         healthX = o.optJSONObject("healthX")?.let { HealthExtra.from(it) },
         history = o.optJSONObject("history")?.let { HealthHistory.from(it) },
         fit = o.optJSONObject("fit")?.let { FitSummary.from(it) },
+        sport = o.optJSONObject("sport")?.let { SportData.from(it) },
         errors = o.optJSONArray("errors")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
     )
 }
