@@ -645,8 +645,8 @@ class MainActivity : ComponentActivity() {
         val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
         val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
         Column {
-            T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", 20.sp, th.fg, weight = FontWeight.Bold)
-            if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", 13.sp, th.muted)
+            T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
+            if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", if (th.flat) 15.sp else 13.sp, th.muted)
         }
         if (cfg.showErrors && problems.isNotEmpty()) {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
