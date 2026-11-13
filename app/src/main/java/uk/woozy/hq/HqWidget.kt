@@ -25,7 +25,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * 3x1 home-screen widget in the Frosted Glass KWGT style: translucent white gradient card,
+ * Compact home-screen widget in the Frosted Glass KWGT style: translucent white gradient card,
  * gradient rim, ProductSans, txt / txt2 / txt3 whites and the 30-square progress bar.
  * Drawn to a bitmap so it can use the real font and bar.
  */
@@ -101,34 +101,35 @@ class HqWidget : AppWidgetProvider() {
 
             val padX = maxOf(radius * 0.7f, 18f * d)
             val left = padX; val right = w - padX; val inner = right - left
-            val compact = hDp < 90
+            val compact = hDp < 100
 
             val label = tp(11f, TXT2)
             val big = tp(if (compact) 16f else 18f, TXT)
             val small = tp(11.5f, TXT3)
 
-            val goal = Store.stepGoal(c)
-            val steps = s.health?.steps
-            val nfmt = NumberFormat.getIntegerInstance(Locale.UK)
-            val stepsTxt = steps?.let { "${nfmt.format(it)} / ${nfmt.format(goal)} steps" } ?: ""
+            // Date, weather, countdowns, steps and calories already sit in other widgets, so this card shows what they don't:
+            // what to lock in, what is waiting on you, the top task, the next event and last night's sleep.
+            val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
+            val mail = s.feed?.optJSONArray("emails")?.length() ?: 0
+            val wait = s.feed?.optJSONArray("waiting_on_others")?.length() ?: 0
+            val lockTxt = when { s.tasks == null -> ""; lock == 0 -> "Nothing to lock in"; lock == 1 -> "1 to lock in" else -> "$lock to lock in" }
+            val waitParts = listOfNotNull(
+                if (mail > 0) (if (mail == 1) "1 reply due" else "$mail replies due") else null,
+                if (wait > 0) "$wait waiting" else null)
+            val waitTxt = waitParts.joinToString(" · ")
+            val sleepTxt = s.health?.sleepMin?.takeIf { it > 0 }?.let { "Slept ${Fmt.duration(it)}" } ?: ""
 
-            // vertical rhythm: measure the block then centre it
             val gap1 = (if (compact) 5f else 7f) * d
             val gap2 = 5f * d
-            val gap3 = (if (compact) 7f else 9f) * d
-            val barH = (if (compact) 6f else 8f) * d
             val lineH = label.textSize
-            var total = lineH + gap1 + big.textSize + gap3 + barH
+            var total = lineH + gap1 + big.textSize
             if (!compact) total += gap2 + small.textSize
             var y = ((h - total) / 2f).coerceAtLeast(inset + 6 * d) + lineH
 
-            // line 1: date and weather | next countdown
-            val date = LocalDate.now(Cfg.zone).format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK))
-            val wx = s.weather?.let { " · ${Fmt.temp(it.temp)} ${WeatherSrc.label(it.code)}" } ?: ""
-            val cd = s.countdowns?.firstOrNull()?.let { "${clean(it.name)} ${it.days}d" } ?: ""
-            val cdW = if (cd.isEmpty()) 0f else minOf(label.measureText(cd), inner * 0.42f)
-            text(date + wx, left, y, label, inner - cdW - 10 * d)
-            if (cd.isNotEmpty()) text(cd, right, y, label, cdW, right = true)
+            // line 1: to lock in | replies due and waiting on others
+            val wW = if (waitTxt.isEmpty()) 0f else minOf(label.measureText(waitTxt), inner * 0.5f)
+            text(lockTxt, left, y, label, inner - wW - 10 * d)
+            if (waitTxt.isNotEmpty()) text(waitTxt, right, y, label, wW, right = true)
 
             // line 2: top task
             y += gap1 + big.textSize
@@ -136,31 +137,13 @@ class HqWidget : AppWidgetProvider() {
                 ?: if (Store.token(c).isEmpty()) "Open HQ to set up" else "Nothing in Do now"
             text(top, left, y, big, inner)
 
-            // line 3: next event | steps
+            // line 3: next event | sleep
             if (!compact) {
                 y += gap2 + small.textSize
                 val ev = nextEvent(s)?.let { clean(it) } ?: ""
-                val sW = small.measureText(stepsTxt)
+                val sW = small.measureText(sleepTxt)
                 text(ev, left, y, small, inner - sW - 12 * d)
-                text(stepsTxt, right, y, small, sW + 1, right = true)
-            }
-
-            // bar: 30 squares, first is the dark cap, filled by steps / goal
-            val barTop = y + gap3
-            val n = 30
-            val slot = inner / n
-            val seg = slot * 0.6f
-            val pct = ((steps ?: 0L).toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f)
-            val filled = (pct * (n - 1)).toInt()
-            val p = Paint(Paint.ANTI_ALIAS_FLAG)
-            for (i in 0 until n) {
-                p.color = when {
-                    i == 0 -> CAP
-                    i <= filled -> TXT
-                    else -> BAR
-                }
-                val x = left + i * slot
-                cv.drawRoundRect(x, barTop, x + seg, barTop + barH, seg * 0.25f, seg * 0.25f, p)
+                if (sleepTxt.isNotEmpty()) text(sleepTxt, right, y, small, sW + 1, right = true)
             }
             return bmp
         }
