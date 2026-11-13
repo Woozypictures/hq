@@ -26,12 +26,12 @@ val HEALTH_NAMES = mapOf(
     "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate", "weight" to "Weight",
     "nutrition" to "Nutrition", "fitness" to "Woozy Fit (workout and check-in)", "activity" to "Calories burned", "weekly" to "Weekly overview",
 )
-val THEME_IDS = setOf("hq", "frosted", "colourful", "standard", "calm", "seventies", "japandi", "riviera", "editorial", "notebook", "riso", "solarpunk", "bauhaus", "chrome", "digital", "noir", "athletic", "arcade")
+val THEME_IDS = setOf("woozy", "hq", "frosted", "colourful", "standard", "calm", "seventies", "japandi", "riviera", "editorial", "notebook", "riso", "solarpunk", "bauhaus", "chrome", "digital", "noir", "athletic", "arcade")
 val INTERVALS = listOf(15, 30, 60, 120, 240, 360)
 
 /** Every user preference lives here. Targets of 0 mean "not set". */
 data class Settings(
-    val theme: String = "hq",
+    val theme: String = "woozy",
     val appearance: String = "system",
     val homeWide: Set<String> = emptySet(),
     val tempUnit: String = "C",
