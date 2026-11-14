@@ -179,7 +179,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) { if (splash) { kotlinx.coroutines.delay(450); splash = false } }
                     Box(Modifier.fillMaxSize()) {
                     if (settingsOpen) SettingsScreen(
-                        s = cfg, onChange = ::update, tokenSaved = tokenSaved, dob = Store.dob(this),
+                        s = cfg, onChange = ::update, tokenSaved = tokenSaved, dob = Store.dob(this@MainActivity),
                         snap = snap, diag = diag, errlog = errlog, start = settingsStart,
                         versionText = versionText(), actions = actions(), onBack = { settingsOpen = false },
                     ) else Screen()
