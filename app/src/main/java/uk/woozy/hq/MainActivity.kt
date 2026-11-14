@@ -138,6 +138,7 @@ class MainActivity : ComponentActivity() {
     private var diag by mutableStateOf<Map<String, SourceState>>(emptyMap())
     private var errlog by mutableStateOf<List<ErrEntry>>(emptyList())
     private var loading by mutableStateOf(false)
+    private var toastTick by mutableStateOf(0L)
     private var settingsOpen by mutableStateOf(false)
     private var settingsStart by mutableStateOf("")
     private var tokenSaved by mutableStateOf(false)
@@ -214,6 +215,7 @@ class MainActivity : ComponentActivity() {
             try { snap = Repo.refresh(this@MainActivity, manual) } catch (_: Exception) { }
             loadDiag()
             loading = false
+            if (manual) toastTick = System.currentTimeMillis()
         }
     }
 
@@ -380,21 +382,30 @@ class MainActivity : ComponentActivity() {
                     .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = if (sub.isEmpty()) 1280.dp else 760.dp)
                     .statusBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp + navInset),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Header(s, tab)
-                if (pages.isNotEmpty()) SubNav(th.tab[tab], pages, sub) { sub = it }
-                when (tab) {
-                    0 -> HomeTab(s) { tab = it }
-                    1 -> LifeTab(s, sub)
-                    2 -> HealthTab(s, sub)
-                    3 -> CareerTab(s, sub)
-                    else -> CreateTab(s, sub)
+                // Quick but not abrupt: a short crossfade between tabs.
+                androidx.compose.animation.Crossfade(targetState = tab, animationSpec = androidx.compose.animation.core.tween(150), label = "tab") { t ->
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Header(s, t)
+                        val pg = when (t) { 1 -> Links.LIFE_PAGES; 2 -> Links.HEALTH_PAGES; 3 -> Links.CAREER_PAGES; 4 -> Links.CREATE_PAGES; else -> emptyList() }
+                        if (pg.isNotEmpty()) SubNav(th.tab[t], pg, sub) { sub = it }
+                        when (t) {
+                            0 -> HomeTab(s) { tab = it }
+                            1 -> LifeTab(s, sub)
+                            2 -> HealthTab(s, sub)
+                            3 -> CareerTab(s, sub)
+                            else -> CreateTab(s, sub)
+                        }
+                    }
                 }
             }
             }
         }
         GlassTopFade(backdrop, th.bg, Modifier.align(Alignment.TopCenter))
+        var showToast by remember { mutableStateOf(false) }
+        LaunchedEffect(toastTick) { if (toastTick > 0) { showToast = true; kotlinx.coroutines.delay(2200); showToast = false } }
+        val gs = remember(th) { glassStyle(th.dark, th.fg, th.muted) }
+        GlassToast("Last refreshed " + Fmt.clock(toastTick), showToast, backdrop, gs, Modifier.align(Alignment.BottomCenter).padding(bottom = navInset + 12.dp))
         GlassPillNav(
             items = TAB_NAMES.mapIndexed { i, n -> GlassItem(n, TAB_ICONS[i]) },
             selected = tab, onSelect = { tab = it; sub = "" },
@@ -404,31 +415,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Same header as Woozy Fit's Home: weekday, big date, then the greeting (Home only) with a one-line note under it. */
     @Composable
     private fun Header(s: Snapshot, tab: Int) {
         val th = LocalTh.current
         val now = LocalDate.now(Cfg.zone)
-        if (th.flat) {
-            // Same shape as Woozy Fit: small date line, big title, optional one-line note.
-            val lock = if (tab == 0) (s.tasks?.count { it.lane == "Do now" } ?: 0) else 0
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)) + (if (loading) "  -  refreshing" else ""), 14.sp, th.muted, weight = FontWeight.Medium)
-                    T(if (tab == 0) "Hello, ${Store.name(this@MainActivity).trim().substringBefore(' ')}" else TAB_NAMES[tab], 36.sp, th.fg, weight = FontWeight.Bold, tracking = (-1).sp)
-                    if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", 15.sp, th.muted)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (homeEditing) Pill("Done") { homeEditing = false }
-                    AvatarButton()
-                }
-            }
-            return
-        }
+        val hour = java.time.LocalTime.now(Cfg.zone).hour
+        val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
+        val lock = if (tab == 0) (s.tasks?.count { it.lane == "Do now" } ?: 0) else 0
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
-                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), 32.sp, th.fg, weight = FontWeight.Bold, caps = true)
-                T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "", 11.sp, th.muted, caps = true)
+                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
+                if (tab == 0) {
+                    T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}!", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
+                    if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", if (th.flat) 15.sp else 13.sp, th.muted)
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (homeEditing) Pill("Done") { homeEditing = false }
@@ -659,13 +661,6 @@ class MainActivity : ComponentActivity() {
     private fun HomeTab(s: Snapshot, go: (Int) -> Unit) {
         val th = LocalTh.current
         val problems = diag.values.filter { !it.ok }
-        val hour = java.time.LocalTime.now(Cfg.zone).hour
-        val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
-        val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
-        if (!th.flat) Column {
-            T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
-            if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", if (th.flat) 15.sp else 13.sp, th.muted)
-        }
         if (cfg.showErrors && problems.isNotEmpty()) {
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .background(if (th.glass) Color(0x14FFFFFF) else lerp(th.panel, th.warn, 0.12f))

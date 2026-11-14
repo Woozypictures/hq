@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -105,12 +106,27 @@ fun SettingsScreen(
         ) { T(label, 13.sp, if (on && !th.glass) Color.White else th.fg, weight = FontWeight.SemiBold) }
     }
 
+    /** Few options: a sliding choice, as in Woozy Fit. Many options (date formats, time zones): chips. */
     @Composable fun Opts(title: String, options: List<Pair<String, String>>, cur: String, pick: (String) -> Unit) {
         Column(Modifier.padding(vertical = 6.dp)) {
             T(title, 13.sp, th.muted, weight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                options.forEach { (v, l) -> Chip(l, v == cur) { pick(v) } }
+            if (options.size <= 3) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.10f)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    options.forEach { (v, l) ->
+                        val on = v == cur
+                        Box(
+                            Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(50))
+                                .background(if (on) (if (th.glass) Color(0x55FFFFFF) else th.tab[0]) else Color.Transparent)
+                                .clickable { pick(v) },
+                            contentAlignment = Alignment.Center,
+                        ) { T(l, 14.sp, if (on && !th.glass) th.onTab else if (on) th.fg else th.muted, weight = FontWeight.SemiBold) }
+                    }
+                }
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    options.forEach { (v, l) -> Chip(l, v == cur) { pick(v) } }
+                }
             }
         }
     }
@@ -118,7 +134,7 @@ fun SettingsScreen(
     @Composable fun Toggle(title: String, note: String?, on: Boolean, change: (Boolean) -> Unit) {
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                T(title, 15.sp, th.fg, weight = FontWeight.Medium)
+                T(title, 16.sp, th.fg, weight = FontWeight.Medium)
                 if (note != null) T(note, 12.sp, th.muted)
             }
             Switch(
@@ -132,7 +148,7 @@ fun SettingsScreen(
         var txt by remember(value) { mutableStateOf(if (value > 0) value.toString() else "") }
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                T(title, 15.sp, th.fg, weight = FontWeight.Medium)
+                T(title, 16.sp, th.fg, weight = FontWeight.Medium)
                 T(note ?: if (value > 0) "" else "Not set", 12.sp, th.muted)
             }
             BasicTextField(
@@ -167,12 +183,12 @@ fun SettingsScreen(
     // Like Woozy Fit: a list of rows, each opening its own page. Only the open page draws its content.
     @Composable fun Section(key: String, title: String, content: @Composable () -> Unit) {
         if (open.isEmpty()) {
-            Row(Modifier.fillMaxWidth().card(18.dp).clickable { open = key }.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp).clickable { open = key }.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 T(title, 16.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold)
                 T("\u203A", 22.sp, th.muted)
             }
         } else if (open == key) {
-            Column(Modifier.fillMaxWidth().card(18.dp).padding(16.dp)) { content() }
+            Column(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp).padding(16.dp)) { content() }
         }
     }
 
@@ -381,14 +397,16 @@ fun SettingsScreen(
                     T(actions.licenseText(), 10.sp, th.muted)
                 }
             }
-            // About shows on the list page: who made it, the version, and the socials.
-            if (open.isEmpty()) Column(Modifier.fillMaxWidth().card(18.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                T("About", 16.sp, th.fg, weight = FontWeight.Bold)
+            // About: identical to Woozy Fit's.
+            if (open.isEmpty()) Column(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                T("Woozy HQ", 16.sp, th.fg, weight = FontWeight.SemiBold)
                 T("Created by Woozypictures", 14.sp, th.fg)
                 T("App version: " + versionText.substringBefore(" ("), 14.sp, th.muted)
                 SOCIALS.forEach { url ->
                     T(url, 14.sp, th.tab[0], Modifier.fillMaxWidth().clickable { actions.openUrl(url) }.padding(vertical = 6.dp), weight = FontWeight.Medium)
                 }
+                T("Source at github.com/Woozypictures/hq", 13.sp, th.muted)
+                T("Your data stays with you.", 13.sp, th.muted)
             }
         }
     }

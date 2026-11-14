@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -161,7 +162,7 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
  */
 @Composable
 fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifier) {
-    val h = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 28.dp
+    val h = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 36.dp
     val blurLayer = rememberGraphicsLayer()
     var pos by remember { mutableStateOf(Offset.Zero) }
     val canBlur = Build.VERSION.SDK_INT >= 31
@@ -178,15 +179,75 @@ fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifi
             }
             .drawBehind {
                 if (canBlur && size.width > 0f && size.height > 0f) {
-                    blurLayer.renderEffect = BlurEffect(18f, 18f, TileMode.Clamp)
+                    blurLayer.renderEffect = BlurEffect(30f, 30f, TileMode.Clamp)
                     blurLayer.record(size = IntSize(size.width.toInt(), size.height.toInt())) {
                         translate(backdrop.origin.x - pos.x, backdrop.origin.y - pos.y) { drawLayer(backdrop.layer) }
                     }
                     drawLayer(blurLayer)
                 }
-                drawRect(bg.copy(alpha = if (canBlur) 0.72f else 0.95f))
+                drawRect(bg.copy(alpha = if (canBlur) 0.80f else 0.95f))
             },
     )
+}
+
+/** Small frosted pop-up that appears briefly (for example "Last refreshed 18:27") and fades away. */
+@Composable
+fun GlassToast(text: String, visible: Boolean, backdrop: GlassBackdrop, style: GlassStyle, modifier: Modifier = Modifier) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible, modifier = modifier,
+        enter = androidx.compose.animation.fadeIn(tween(180)) + androidx.compose.animation.scaleIn(tween(180), initialScale = 0.92f),
+        exit = androidx.compose.animation.fadeOut(tween(260)),
+    ) {
+        Box(
+            Modifier.glass(backdrop, style, RoundedCornerShape(24.dp)).padding(horizontal = 20.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = style.ink))
+        }
+    }
+}
+
+data class GlassMenuItem(val label: String, val icon: ImageVector, val onClick: () -> Unit)
+
+/**
+ * Bubble menu that pops out of the nav's action button (like an iOS long-press menu). Cover the whole screen with it:
+ * a tap outside closes it. [bottomInset] is the space to leave for the nav so the bubble sits just above the button.
+ */
+@Composable
+fun GlassPopupMenu(
+    visible: Boolean, items: List<GlassMenuItem>, onDismiss: () -> Unit,
+    backdrop: GlassBackdrop, style: GlassStyle, bottomInset: androidx.compose.ui.unit.Dp,
+) {
+    val haptic = LocalHapticFeedback.current
+    androidx.compose.animation.AnimatedVisibility(visible = visible, enter = androidx.compose.animation.fadeIn(tween(120)), exit = androidx.compose.animation.fadeOut(tween(120))) {
+        Box(
+            Modifier.fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.18f))
+                .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss),
+        ) {
+            Column(
+                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = bottomInset + 6.dp).width(236.dp)
+                    .glass(backdrop, style, RoundedCornerShape(26.dp), blur = 40f)
+                    .selectable(selected = false, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = {})
+                    .padding(vertical = 6.dp),
+            ) {
+                items.forEachIndexed { i, item ->
+                    if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(0.5.dp).background(style.outline))
+                    Row(
+                        Modifier.fillMaxWidth().height(50.dp)
+                            .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); item.onClick()
+                            }
+                            .padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(item.label, modifier = Modifier.weight(1f), style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = style.ink))
+                        Icon(item.icon, contentDescription = null, tint = style.ink, modifier = Modifier.size(22.dp))
+                    }
+                }
+            }
+        }
+    }
 }
 
 data class GlassItem(val label: String, val icon: ImageVector)
@@ -205,6 +266,9 @@ fun GlassPillNav(
     style: GlassStyle,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
+    actionIcon: ImageVector? = null,
+    actionLabel: String = "",
+    onAction: () -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
     Row(
@@ -216,7 +280,7 @@ fun GlassPillNav(
         val pill = RoundedCornerShape(32.dp)
         BoxWithConstraints(Modifier.weight(1f, fill = true).height(GlassNavHeight).glass(backdrop, style, pill)) {
             val pad = 6.dp
-            val itemW = (maxWidth - pad * 2) / items.size
+            val itemW = (maxWidth - pad * 2) / (items.size + (if (actionIcon != null) 1 else 0))
             val x by animateDpAsState(pad + itemW * selected, tween(280, easing = FastOutSlowInEasing), label = "capsule")
             Box(
                 Modifier.offset(x = x, y = pad).width(itemW).height(GlassNavHeight - pad * 2)
@@ -242,6 +306,14 @@ fun GlassPillNav(
                             ),
                         )
                     }
+                }
+                if (actionIcon != null) {
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onAction()
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(actionIcon, contentDescription = actionLabel, tint = style.ink, modifier = Modifier.size(30.dp)) }
                 }
             }
         }

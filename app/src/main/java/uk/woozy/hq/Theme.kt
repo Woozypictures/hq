@@ -68,6 +68,19 @@ internal val WOOZY_DARK = Th(
     hair = Color(0x1FFFFFFF), ok = Color(0xFF8FD18F), warn = Color(0xFFFF8A7A), amber = Color(0xFFE8C26A),
     tab = List(5) { Color(0xFFC8F25A) }, onTab = Color(0xFF10140A), flat = true,
 )
+/** Everfit's look, same values as Woozy Fit's Everfit scheme. */
+internal val EVERFIT = Th(
+    dark = false, glass = false,
+    bg = Color(0xFFF6F7FC), panel = Color(0xFFFFFFFF), fg = Color(0xFF1C1D22), muted = Color(0xFF6B6F80),
+    hair = Color(0x1A1C1D22), ok = Color(0xFF2E7D4F), warn = Color(0xFFB42318), amber = Color(0xFF9A6A14),
+    tab = List(5) { Color(0xFF2355FB) }, onTab = Color.White,
+)
+internal val EVERFIT_DARK = Th(
+    dark = true, glass = false,
+    bg = Color(0xFF14151B), panel = Color(0xFF1F2129), fg = Color(0xFFF1F2F6), muted = Color(0xFFA0A4B5),
+    hair = Color(0x24FFFFFF), ok = Color(0xFF6CC48D), warn = Color(0xFFFF8A7A), amber = Color(0xFFE8C26A),
+    tab = List(5) { Color(0xFF6E8CFF) }, onTab = Color(0xFF0B1020),
+)
 internal val LocalTh = staticCompositionLocalOf { WOOZY }
 
 @Composable
@@ -156,10 +169,10 @@ internal val EXTRA_THEMES: Map<String, Th> = mapOf(
         ok = Color(0xFFA8FF3E), warn = Color(0xFFFF5C8A), amber = Color(0xFFFFD23E),
         tab = listOf(Color(0xFF3EE6FF), Color(0xFFFF3EC8), Color(0xFF3EE6FF), Color(0xFF3EE6FF), Color(0xFFFF3EC8)), onTab = Color(0xFF120A26)),
 )
-internal val THEME_NAMES: List<Pair<String, String>> = listOf("woozy" to "Woozy", "hq" to "Natural (HQ)", "frosted" to "Frosted glass") + listOf(
+internal val THEME_NAMES: List<Pair<String, String>> = listOf("woozy" to "Woozy", "everfit" to "Everfit", "hq" to "Natural (HQ)", "frosted" to "Frosted glass") + listOf(
     "colourful" to "Colourful", "standard" to "Standard", "calm" to "Calm", "seventies" to "Seventies", "japandi" to "Japandi", "riviera" to "Riviera", "editorial" to "Editorial", "notebook" to "Notebook", "riso" to "Riso", "solarpunk" to "Solarpunk", "bauhaus" to "Bauhaus", "chrome" to "Chrome", "digital" to "Digital", "noir" to "Noir", "athletic" to "Athletic", "arcade" to "Arcade"
 )
-internal fun themeFor(id: String): Th = when (id) { "woozy" -> WOOZY; "hq" -> HQ; "frosted" -> FROSTED; else -> EXTRA_THEMES[id] ?: WOOZY }
+internal fun themeFor(id: String): Th = when (id) { "woozy" -> WOOZY; "hq" -> HQ; "everfit" -> EVERFIT; "frosted" -> FROSTED; else -> EXTRA_THEMES[id] ?: WOOZY }
 
 /** Dark version of any light colour scheme: same accents (lightened), dark surfaces. */
 internal fun darkOf(t: Th): Th {
@@ -174,5 +187,6 @@ internal fun darkOf(t: Th): Th {
 internal fun resolveTheme(id: String, appearance: String, systemDark: Boolean): Th {
     val base = themeFor(id)
     if (id == "woozy") return if (appearance == "dark" || (appearance == "system" && systemDark)) WOOZY_DARK else WOOZY
+    if (id == "everfit") return if (appearance == "dark" || (appearance == "system" && systemDark)) EVERFIT_DARK else EVERFIT
     return if (!base.dark && (appearance == "dark" || (appearance == "system" && systemDark))) darkOf(base) else base
 }
