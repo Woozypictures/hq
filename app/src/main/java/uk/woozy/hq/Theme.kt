@@ -125,9 +125,8 @@ internal fun Modifier.card(r: Dp, tint: Color? = null): Modifier {
     return if (th.flat) {
         this.clip(shape).background(th.panel)
     } else if (th.glass) {
-        this.clip(shape)
-            .background(Brush.horizontalGradient(listOf(Color(0x0EFFFFFF), Color(0x37FFFFFF))))
-            .border(1.dp, Brush.horizontalGradient(listOf(Color(0x3AFFFFFF), Color(0x60FFFFFF))), shape)
+        // Frosted glass scheme: solid crisp cards; glass stays on the navigation layer only.
+        this.clip(shape).background(Color(0xFF3A3A3A)).border(1.dp, Color(0x1AFFFFFF), shape)
     } else {
         val m = this.clip(shape).background(if (tint != null) lerp(th.panel, tint, 0.12f) else th.panel)
         if (tint == null) m.border(1.dp, th.hair, shape) else m

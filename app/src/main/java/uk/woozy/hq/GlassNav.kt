@@ -109,9 +109,9 @@ fun glassStyle(dark: Boolean, ink: Color, muted: Color): GlassStyle = if (dark) 
     )
 } else {
     GlassStyle(
-        tint = Color.White.copy(alpha = 0.58f), tintNoBlur = Color.White.copy(alpha = 0.94f),
+        tint = Color(0xFFEEF0F3).copy(alpha = 0.52f), tintNoBlur = Color.White.copy(alpha = 0.94f),
         rim = Color.White.copy(alpha = 0.70f), capsule = Color(0xFF1D1D1F).copy(alpha = 0.075f),
-        ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.26f), outline = Color.Black.copy(alpha = 0.10f),
+        ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.26f), outline = Color.Black.copy(alpha = 0.07f),
     )
 }
 
@@ -185,7 +185,43 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
                 style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
             )
         }
-        .border(1.dp, style.outline, shape)
+        .drawWithContent {
+            drawContent()
+            // Hairline that only shows along the lower half, so the top keeps its bright specular edge.
+            drawOutline(
+                shape.createOutline(size, layoutDirection, this),
+                androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 0.5f to Color.Transparent, 1f to style.outline),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+            )
+        }
+}
+
+/** Solid version of the glass for surfaces that sit on other glass (menus, sheets): crisp, with the same rim and shadow. */
+fun Modifier.solidGlass(style: GlassStyle, shape: Shape): Modifier = this
+    .shadow(20.dp, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.5f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.5f))
+    .clip(shape)
+    .background(style.tintNoBlur.copy(alpha = 0.97f))
+    .drawBehind {
+        val dark = style.tint.red < 0.5f
+        drawOutline(
+            shape.createOutline(size, layoutDirection, this),
+            androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (dark) 0.25f else 0.8f), 1f to Color.Black.copy(alpha = if (dark) 0.2f else 0.06f)),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+        )
+    }
+
+/**
+ * Bottom scroll edge: content dissolves into the page colour as it slides under the nav pill, so cards never look
+ * clipped by the gesture bar. Place it just before the pill in the screen's Box.
+ */
+@Composable
+fun GlassBottomFade(bg: Color, modifier: Modifier = Modifier) {
+    val nb = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Box(
+        modifier.fillMaxWidth().height(nb + GlassNavHeight + GlassNavLift + 24.dp).background(
+            androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 0.45f to bg.copy(alpha = 0.55f), 1f to bg.copy(alpha = 0.9f)),
+        ),
+    )
 }
 
 /**
@@ -271,11 +307,14 @@ fun GlassToast(text: String, visible: Boolean, backdrop: GlassBackdrop, style: G
         enter = androidx.compose.animation.fadeIn(tween(180)) + androidx.compose.animation.scaleIn(tween(180), initialScale = 0.92f),
         exit = androidx.compose.animation.fadeOut(tween(260)),
     ) {
+        // A solid ink toast (as Samsung's "Last synced"), so it never reads as glass stacked on the glass pill.
+        val dark = style.tint.red < 0.5f
         Box(
-            Modifier.glass(backdrop, style, RoundedCornerShape(24.dp)).padding(horizontal = 20.dp, vertical = 12.dp),
+            Modifier.shadow(12.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp))
+                .background(if (dark) Color(0xFFF2F2F0) else Color(0xFF1C1D1F)).padding(horizontal = 20.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = style.ink))
+            Text(text, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (dark) Color(0xFF1C1D1F) else Color.White))
         }
     }
 }
@@ -306,7 +345,7 @@ fun GlassPopupMenu(
                 Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = bottomInset + 6.dp)
                     .graphicsLayer { scaleX = grow.value; scaleY = grow.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f) }
                     .width(236.dp)
-                    .glass(backdrop, style, RoundedCornerShape(26.dp), blur = 24f)
+                    .solidGlass(style, RoundedCornerShape(26.dp))
                     .selectable(selected = false, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = {})
                     .padding(vertical = 6.dp),
             ) {
@@ -494,16 +533,27 @@ fun GlassRoundButton(backdrop: GlassBackdrop, style: GlassStyle, onClick: () -> 
     ) { content() }
 }
 
-/** No press ripple or grey flash anywhere: a touch is answered with a light haptic tick instead. */
+/** No press ripple or grey flash anywhere: a touch gets a light haptic tick and a small spring press (scales to 98% and back). */
 object NoIndication : androidx.compose.foundation.IndicationNodeFactory {
     override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
         object : Modifier.Node(), androidx.compose.ui.node.DrawModifierNode, androidx.compose.ui.node.CompositionLocalConsumerModifierNode {
-            override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() { drawContent() }
+            val press = androidx.compose.animation.core.Animatable(1f)
+            override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
+                val k = press.value
+                if (k == 1f) drawContent() else androidx.compose.ui.graphics.drawscope.scale(k, k) { this@draw.drawContent() }
+            }
             override fun onAttach() {
                 coroutineScope.launch {
                     interactionSource.interactions.collect {
-                        if (it is androidx.compose.foundation.interaction.PressInteraction.Press)
-                            currentValueOf(LocalHapticFeedback).performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        when (it) {
+                            is androidx.compose.foundation.interaction.PressInteraction.Press -> {
+                                currentValueOf(LocalHapticFeedback).performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                launch { press.animateTo(0.98f, androidx.compose.animation.core.spring(stiffness = 900f)) }
+                            }
+                            is androidx.compose.foundation.interaction.PressInteraction.Release,
+                            is androidx.compose.foundation.interaction.PressInteraction.Cancel ->
+                                launch { press.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 500f)) }
+                        }
                     }
                 }
             }

@@ -402,6 +402,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         GlassTopFade(backdrop, th.bg, Modifier.align(Alignment.TopCenter))
+        GlassBottomFade(th.bg, Modifier.align(Alignment.BottomCenter))
         var showToast by remember { mutableStateOf(false) }
         LaunchedEffect(toastTick) { if (toastTick > 0) { showToast = true; kotlinx.coroutines.delay(2200); showToast = false } }
         val gs = remember(th) { glassStyle(th.dark, th.fg, th.muted) }
@@ -426,7 +427,9 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.weight(1f)) {
                 if (tab == 0) {
                     // Three lines at most, same as Woozy Fit: date, greeting, weather.
-                    T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)), 13.sp, th.muted, weight = FontWeight.Medium)
+                    // Freshness: when the data is over 30 minutes old, say when Notion and Health last refreshed.
+                    val age = if (s.updated > 0) (System.currentTimeMillis() - s.updated) / 60_000 else 0
+                    T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)) + (if (s.updated > 0 && age > 30) " \u00B7 updated " + Fmt.clock(s.updated) else ""), 13.sp, if (age > 120) th.warn else th.muted, weight = FontWeight.Medium)
                     T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 28.sp else 24.sp, th.fg, weight = FontWeight.Bold, maxLines = 2, tracking = if (th.flat) (-0.6).sp else TextUnit.Unspecified)
                     s.weather?.let { w ->
                         T("${Fmt.temp(w.temp)} \u00B7 ${WeatherSrc.label(w.code)} \u00B7 H ${Fmt.temp(w.hi)} L ${Fmt.temp(w.lo)} \u00B7 Rain ${w.rain}%", 12.sp, th.muted,
@@ -699,7 +702,7 @@ class MainActivity : ComponentActivity() {
                         when (k) {
                             "steps" -> MiniStat("Steps", s.health?.steps?.let { nf.format(it) } ?: "-", if (stepsGoal > 0) "of ${nf.format(stepsGoal)}" else null,
                                 s.health?.steps?.let { if (stepsGoal > 0) (it.toFloat() / stepsGoal).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("pedometer") }
-                            "sleep" -> MiniStat("Sleep", s.health?.sleepMin?.takeIf { it > 0 }?.let { Fmt.duration(it) } ?: "-", if (cfg.sleepTargetMin > 0) "of ${Fmt.duration(cfg.sleepTargetMin.toLong())}" else null,
+                            "sleep" -> MiniStat("Sleep", s.health?.sleepMin?.takeIf { it > 0 }?.let { Fmt.duration(it) } ?: "-", if (s.health?.sleepMin?.takeIf { it > 0 } == null) "none recorded" else if (cfg.sleepTargetMin > 0) "of ${Fmt.duration(cfg.sleepTargetMin.toLong())}" else null,
                                 s.health?.sleepMin?.takeIf { it > 0 }?.let { if (cfg.sleepTargetMin > 0) (it.toFloat() / cfg.sleepTargetMin).coerceIn(0f, 1f) else null }, Modifier.weight(1f)) { openShealth("sleep") }
                             else -> MiniStat("Heart rate", s.health?.restingHr?.let { "$it" } ?: "-", "resting bpm", null, Modifier.weight(1f)) { openShealth("heartrate") }
                         }
