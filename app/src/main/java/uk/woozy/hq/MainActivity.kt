@@ -1124,7 +1124,23 @@ class MainActivity : ComponentActivity() {
         val ren = m.optJSONArray("renewals").objs()
         if (goals.isEmpty() && ren.isEmpty()) return
         Section("Money", "Notion", { open(Links.LIFE_PAGES[1].second) }) {
-            if (goals.isNotEmpty()) Panel {
+            if (goals.isNotEmpty() && LocalTh.current.flat) {
+                val th2 = LocalTh.current
+                Column(Modifier.fillMaxWidth().card(22.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    goals.forEach { o ->
+                        val t = o.optDouble("target"); val sv = o.optDouble("saved")
+                        val frac = if (t > 0) (sv / t).toFloat().coerceIn(0f, 1f) else 0f
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                                T(o.optString("goal"), 15.sp, th2.fg, Modifier.weight(1f), weight = FontWeight.Medium)
+                                T("\u00A3" + nf.format(sv.toLong()), 22.sp, th2.fg, weight = FontWeight.Bold, tracking = (-0.5).sp)
+                            }
+                            Segments(frac, th2.tab[1], 8.dp)
+                            T("of \u00A3" + nf.format(t.toLong()) + " \u00B7 \u00A3" + nf.format(o.optLong("per_month")) + " a month", 12.sp, th2.muted)
+                        }
+                    }
+                }
+            } else if (goals.isNotEmpty()) Panel {
                 goals.forEach { o ->
                     val t = o.optDouble("target"); val sv = o.optDouble("saved")
                     val pct = if (t > 0) (sv / t * 100).toInt() else 0
