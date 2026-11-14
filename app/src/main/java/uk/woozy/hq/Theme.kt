@@ -129,7 +129,8 @@ internal fun T(
 @Composable
 internal fun Modifier.card(r: Dp, tint: Color? = null): Modifier {
     val th = LocalTh.current
-    val shape = RoundedCornerShape(r)
+    // Woozy look: every page card shares the token radius (22dp), the same as Woozy Fit's cards.
+    val shape = RoundedCornerShape(if (th.flat && r >= 14.dp) WoozyTokens.Radius.card else r)
     return if (th.flat) {
         this.clip(shape).background(th.panel)
     } else if (th.glass) {

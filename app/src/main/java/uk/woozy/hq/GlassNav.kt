@@ -108,13 +108,13 @@ class GlassStyle(
 
 fun glassStyle(dark: Boolean, ink: Color, muted: Color): GlassStyle = if (dark) {
     GlassStyle(
-        tint = Color(0xFF1C1D1F).copy(alpha = 0.52f), tintNoBlur = Color(0xFF202124).copy(alpha = 0.92f),
+        tint = WoozyTokens.Glass.tintDark, tintNoBlur = WoozyTokens.Glass.fallbackDark,
         rim = Color.White.copy(alpha = 0.14f), capsule = Color.White.copy(alpha = 0.14f),
         ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.50f), outline = Color.White.copy(alpha = 0.22f),
     )
 } else {
     GlassStyle(
-        tint = Color(0xFFEEF0F3).copy(alpha = 0.52f), tintNoBlur = Color.White.copy(alpha = 0.94f),
+        tint = WoozyTokens.Glass.tintLight, tintNoBlur = WoozyTokens.Glass.fallbackLight,
         rim = Color.White.copy(alpha = 0.70f), capsule = Color(0xFF1D1D1F).copy(alpha = 0.075f),
         ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.26f), outline = Color.Black.copy(alpha = 0.07f),
     )
@@ -171,22 +171,25 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
     val dark = style.tint.red < 0.5f
     return this
         .onGloballyPositioned { pos = it.positionInRoot() }
-        .shadow(24.dp, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.45f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.4f))
-        // Key shadow dropped 3dp below, so the glass has a light direction (from above).
+        .shadow(WoozyTokens.Glass.ambientBlur, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.45f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.4f))
+        // Three-layer depth: ambient (above), a key shadow dropped 3dp (light from above) and a tight contact shadow
+        // that seats the glass on the page.
         .drawBehind {
-            val path = androidx.compose.ui.graphics.Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawBehind)) }
-            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                color = android.graphics.Color.TRANSPARENT
-                setShadowLayer(7.dp.toPx(), 0f, 3.dp.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.7f).toArgb())
-            }
-            drawContext.canvas.nativeCanvas.drawPath(path.asAndroidPath(), paint)
+            val path = androidx.compose.ui.graphics.Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawBehind)) }.asAndroidPath()
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.TRANSPARENT }
+            paint.setShadowLayer(WoozyTokens.Glass.keyBlur.toPx(), 0f, WoozyTokens.Glass.keyOffset.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.7f).toArgb())
+            drawContext.canvas.nativeCanvas.drawPath(path, paint)
+            paint.setShadowLayer(1.5.dp.toPx(), 0f, 0.5.dp.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.55f).toArgb())
+            drawContext.canvas.nativeCanvas.drawPath(path, paint)
         }
         .clip(shape)
         .drawBehind {
             if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, (if (dark) blur + 4f else blur).dp.toPx(), saturate = true)
             val tint = if (!canBlur) style.tintNoBlur else if (reduce) style.tintNoBlur.copy(alpha = 0.8f) else style.tint
             drawRect(tint)
-            drawRect(grainShader, alpha = if (dark) 0.04f else 0.03f, blendMode = androidx.compose.ui.graphics.BlendMode.Overlay)
+            drawRect(grainShader, alpha = if (dark) WoozyTokens.Glass.grainDark else WoozyTokens.Glass.grainLight, blendMode = androidx.compose.ui.graphics.BlendMode.Overlay)
+            // Soft top sheen: light falling into the glass from above, gone by 40% of the height.
+            drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (dark) 0.06f else 0.16f), 0.4f to Color.Transparent))
             // Specular edge: light catches the top rim and fades down the sides; a faint darker rim at the bottom.
             val outline = shape.createOutline(size, layoutDirection, this)
             drawOutline(
@@ -197,6 +200,18 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
                 ),
                 style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
             )
+            // Inner rim highlight: a second, finer line 1dp inside the top edge, like light on a bevel.
+            val i = 1.dp.toPx()
+            if (size.width > i * 4 && size.height > i * 4) {
+                val inner = shape.createOutline(androidx.compose.ui.geometry.Size(size.width - i * 2, size.height - i * 2), layoutDirection, this)
+                translate(i, i) {
+                    drawOutline(
+                        inner,
+                        androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (dark) 0.14f else 0.45f), 0.3f to Color.Transparent, endY = size.height),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(0.75.dp.toPx()),
+                    )
+                }
+            }
         }
         .drawWithContent {
             drawContent()
@@ -232,7 +247,7 @@ fun GlassBottomFade(bg: Color, modifier: Modifier = Modifier) {
     val nb = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(
         modifier.fillMaxWidth().height(nb + GlassNavHeight + GlassNavLift + 24.dp).background(
-            androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 0.45f to bg.copy(alpha = 0.55f), 1f to bg.copy(alpha = 0.9f)),
+            androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 0.25f to bg.copy(alpha = 0.22f), 0.5f to bg.copy(alpha = 0.6f), 0.75f to bg.copy(alpha = 0.84f), 1f to bg.copy(alpha = 0.94f)),
         ),
     )
 }
@@ -463,15 +478,21 @@ fun GlassPillNav(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
     ) {
-        val pill = RoundedCornerShape(32.dp)
+        val pill = RoundedCornerShape(WoozyTokens.Radius.pill)
         BoxWithConstraints(Modifier.weight(1f, fill = true).height(GlassNavHeight).glass(backdrop, style, pill)) {
             val pad = 6.dp
             val itemW = (maxWidth - pad * 2) / (items.size + (if (actionIcon != null) 1 else 0))
             val reduce = rememberReduceMotion()
-            val x by animateDpAsState(
-                pad + itemW * selected,
-                if (reduce) tween(0) else androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f), label = "capsule",
-            )
+            // Stretchy capsule: the leading edge springs ahead and the trailing edge follows, so the capsule
+            // stretches toward the new tab and settles (iOS segmented feel). Same position and size at rest.
+            var lastSel by remember { mutableStateOf(selected) }
+            val goingRight = selected >= lastSel
+            androidx.compose.runtime.SideEffect { lastSel = selected }
+            val fast = androidx.compose.animation.core.spring<androidx.compose.ui.unit.Dp>(dampingRatio = 0.8f, stiffness = 620f)
+            val slow = androidx.compose.animation.core.spring<androidx.compose.ui.unit.Dp>(dampingRatio = 0.82f, stiffness = 300f)
+            val left by animateDpAsState(pad + itemW * selected, if (reduce) tween(0) else if (goingRight) slow else fast, label = "capL")
+            val right by animateDpAsState(pad + itemW * (selected + 1), if (reduce) tween(0) else if (goingRight) fast else slow, label = "capR")
+            val x = left
             // Press glow: a soft light that blooms from the touched slot across the glass.
             var glowAt by remember { mutableStateOf(-1) }
             var glowTick by remember { mutableStateOf(0) }
@@ -491,8 +512,16 @@ fun GlassPillNav(
                 }
             })
             Box(
-                Modifier.offset(x = x, y = pad).width(itemW).height(GlassNavHeight - pad * 2)
-                    .clip(RoundedCornerShape(26.dp)).background(style.capsule),
+                Modifier.offset(x = x, y = pad).width((right - left).coerceAtLeast(itemW * 0.6f)).height(GlassNavHeight - pad * 2)
+                    .clip(RoundedCornerShape(WoozyTokens.Radius.capsule)).background(style.capsule)
+                    .drawBehind {
+                        // Capsule catches the same top light as the pill, so it reads as a pressed-in lens.
+                        drawRoundRect(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (style.tint.red < 0.5f) 0.10f else 0.35f), 0.5f to Color.Transparent),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(WoozyTokens.Radius.capsule.toPx()),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(0.75.dp.toPx()),
+                        )
+                    },
             )
             Row(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = pad)) {
                 items.forEachIndexed { i, item ->
@@ -505,7 +534,12 @@ fun GlassPillNav(
                         },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                     ) {
-                        Icon(item.icon, contentDescription = null, tint = if (on) style.ink else style.muted, modifier = Modifier.size(24.dp))
+                        val pop = remember { androidx.compose.animation.core.Animatable(1f) }
+                        androidx.compose.runtime.LaunchedEffect(on) {
+                            if (on && !reduce) { pop.snapTo(0.86f); pop.animateTo(1f, WoozyTokens.Motion.pop) }
+                        }
+                        val iconTint by androidx.compose.animation.animateColorAsState(if (on) style.ink else style.muted, tween(160), label = "tint")
+                        Icon(item.icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value })
                         Spacer(Modifier.height(3.dp))
                         Text(
                             item.label, maxLines = 1, overflow = TextOverflow.Clip,
@@ -616,5 +650,57 @@ object WoozyTokens {
         val sheet = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
         val fill = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.85f, stiffness = 120f)
         const val countMs = 700; const val fadeInMs = 150; const val fadeOutMs = 90
+    }
+}
+
+/**
+ * Floating rest timer pill (same frosted material as the nav): time left in tabular figures, a progress line that
+ * drains along the bottom edge, +15s and Skip. [solid] uses the crisp solid glass when it sits over the keypad.
+ */
+@Composable
+fun GlassRestPill(
+    leftMs: Long,
+    totalMs: Long,
+    backdrop: GlassBackdrop,
+    style: GlassStyle,
+    accent: Color,
+    onAdd: () -> Unit,
+    onSkip: () -> Unit,
+    modifier: Modifier = Modifier,
+    solid: Boolean = false,
+) {
+    val shape = CircleShape
+    val frac = if (totalMs > 0) (leftMs.toFloat() / totalMs).coerceIn(0f, 1f) else 0f
+    val shown by androidx.compose.animation.core.animateFloatAsState(frac, tween(300), label = "rest")
+    val sec = ((leftMs + 999) / 1000).toInt()
+    Row(
+        modifier.height(56.dp)
+            .then(if (solid) Modifier.solidGlass(style, shape) else Modifier.glass(backdrop, style, shape))
+            .drawWithContent {
+                drawContent()
+                val h = 2.dp.toPx()
+                val inset = size.height / 2
+                val w = (size.width - inset * 2) * shown
+                if (w > 0f) drawLine(accent, Offset(inset, size.height - h * 1.5f), Offset(inset + w, size.height - h * 1.5f), h, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            .padding(start = 20.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Rest", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, color = style.muted))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "%d:%02d".format(sec / 60, sec % 60),
+            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = style.ink, letterSpacing = (-0.4).sp, fontFeatureSettings = "tnum"),
+        )
+        Spacer(Modifier.width(14.dp))
+        Box(
+            Modifier.clip(CircleShape).selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = NoIndication, onClick = onAdd)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) { Text("+15s", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = style.ink, fontFeatureSettings = "tnum")) }
+        Box(
+            Modifier.clip(CircleShape).background(style.capsule)
+                .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = NoIndication, onClick = onSkip)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) { Text("Skip", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = style.ink)) }
     }
 }

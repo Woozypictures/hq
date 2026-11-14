@@ -92,6 +92,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -1073,6 +1074,36 @@ class MainActivity : ComponentActivity() {
         if (d?.hrvLatest == null && sleep == null && rhr == null) return
         val th = LocalTh.current
         val est = estimateRecovery(s, cfg.sleepTargetMin)
+        if (th.flat) {
+            // Woozy layout (same as Woozy Fit): one card, score in a spring-filled ring, readings on inset tiles
+            // (14dp corners, 8dp inside the 22dp card, so the corners nest).
+            Section("Recovery") {
+                Panel {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (est != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                            val col = when (est.label) { "Good" -> th.ok; "Okay" -> th.amber; else -> th.warn }
+                            SpringRing(est.score / 100f, col, 92.dp, 8.dp) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    T("${est.score}", 28.sp, th.fg, weight = FontWeight.Bold, tracking = (-0.6).sp)
+                                    T("of 100", 11.sp, th.muted)
+                                }
+                            }
+                            Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                T(est.label, 20.sp, th.fg, weight = FontWeight.SemiBold)
+                                T(est.parts.joinToString(" \u00B7 ") { "${it.first} ${it.second}" }, 13.sp, th.muted)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            InsetTile("HRV", d?.hrvLatest?.let { "${it.toInt()}" } ?: "-", d?.hrvLatest?.let { "ms" }, d?.hrvAvg7?.let { "7 day ${it.toInt()}" }, Modifier.weight(1f))
+                            InsetTile("Resting HR", rhr?.let { "$it" } ?: "-", rhr?.let { "bpm" }, null, Modifier.weight(1f))
+                            InsetTile("Sleep", sleep?.let { Fmt.duration(it) } ?: "-", null, "last night", Modifier.weight(1f))
+                        }
+                        T("HQ's own estimate from HRV, resting heart rate and sleep. Not Samsung's score." + (s.sport?.at?.takeIf { it > 0 }?.let { " Watch data read " + Fmt.clock(it) + "." } ?: ""), 11.sp, th.muted)
+                    }
+                }
+            }
+            return
+        }
         Section("Recovery") {
             if (est != null) Panel {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1256,12 +1287,49 @@ class MainActivity : ComponentActivity() {
     private val C_CARBS = Color(0xFF62C4D1)
     private val C_FAT = Color(0xFFBE98E6)
 
+    /** Inset tone for tiles and tracks inside a card (bg-inset token). */
+    @Composable
+    private fun insetColor(): Color { val th = LocalTh.current; return lerp(th.panel, th.fg, if (th.dark) 0.08f else 0.05f) }
+
+    /** A reading on an inset tile inside a card: label, figure (with a small unit) and a note. */
+    @Composable
+    private fun InsetTile(label: String, value: String, unit: String?, sub: String?, modifier: Modifier) {
+        val th = LocalTh.current
+        Column(modifier.clip(RoundedCornerShape(WoozyTokens.Radius.tile)).background(insetColor()).padding(horizontal = 12.dp, vertical = 10.dp)) {
+            T(label, 13.sp, th.muted, maxLines = 1)
+            Row(verticalAlignment = Alignment.Bottom) {
+                T(value, 20.sp, th.fg, weight = FontWeight.Bold, maxLines = 1, tracking = (-0.3).sp)
+                if (unit != null) T(" $unit", 11.sp, th.muted, modifier = Modifier.padding(bottom = 2.dp))
+            }
+            if (sub != null) T(sub, 11.sp, th.muted, maxLines = 1)
+        }
+    }
+
+    /** Ring that springs from empty to its value on first show (spring-fill token), like Woozy Fit's rings. */
+    @Composable
+    private fun SpringRing(pct: Float, color: Color, diameter: Dp, stroke: Dp, content: @Composable () -> Unit) {
+        val track = insetColor()
+        val a = remember { androidx.compose.animation.core.Animatable(0f) }
+        LaunchedEffect(pct) { a.animateTo(pct.coerceIn(0f, 1f), WoozyTokens.Motion.fill) }
+        Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val sw = stroke.toPx()
+                val tl = Offset(sw / 2, sw / 2)
+                val sz = Size(size.width - sw, size.height - sw)
+                drawArc(track, 0f, 360f, false, topLeft = tl, size = sz, style = Stroke(sw))
+                if (a.value > 0f) drawArc(color, -90f, 360f * a.value, false, topLeft = tl, size = sz, style = Stroke(sw, cap = StrokeCap.Round))
+            }
+            content()
+        }
+    }
+
     @Composable
     private fun HCard(title: String, onClick: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
         val th = LocalTh.current
         Column(Modifier.fillMaxWidth().card(18.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(16.dp)) {
-            T(title, 12.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
-            Spacer(Modifier.height(4.dp))
+            // Same hierarchy as Woozy Fit's cards: a quiet label, then the figure.
+            if (th.flat) T(title, 14.sp, th.muted) else T(title, 12.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
+            Spacer(Modifier.height(if (th.flat) 6.dp else 4.dp))
             content()
         }
     }
@@ -1282,8 +1350,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MiniStat(title: String, value: String, sub: String?, pct: Float?, modifier: Modifier, onClick: () -> Unit) {
         val th = LocalTh.current
-        Column(modifier.heightIn(min = 96.dp).card(16.dp).clickable(onClick = onClick).padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            T(title, 11.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
+        Column(modifier.heightIn(min = 96.dp).card(16.dp).clickable(onClick = onClick).padding(if (th.flat) 16.dp else 12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            if (th.flat) T(title, 13.sp, th.muted) else T(title, 11.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
             Column {
                 T(value, if (th.flat) 28.sp else 22.sp, th.fg, weight = FontWeight.Bold, maxLines = 1, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
                 if (sub != null) T(sub, 12.sp, th.muted, maxLines = 1)
@@ -1365,6 +1433,36 @@ class MainActivity : ComponentActivity() {
         HCard("Woozy Fit", { openFit() }) {
             if (f == null) {
                 T(if (FitSrc.installed(this@MainActivity)) "Waiting for Woozy Fit data. Pull to refresh" else "Woozy Fit is not installed", 14.sp, th.muted)
+                return@HCard
+            }
+            if (th.flat) {
+                // Same hierarchy as Woozy Fit's Home: what today is, the workout in 20sp, the week as dots, check-in chips.
+                val accent = th.tab[2]
+                T(when { f.workoutToday == null -> "Rest day"; f.workoutDone -> "Done today"; else -> "Today's workout" }, 13.sp, th.muted)
+                T(f.workoutToday ?: "Hoo-ray, it's your rest day \uD83C\uDF34", 20.sp, th.fg, weight = FontWeight.SemiBold, maxLines = 2)
+                if (f.doneWeek != null && f.plannedWeek != null && f.plannedWeek > 0) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        repeat(f.plannedWeek.coerceAtMost(7)) { i ->
+                            Box(Modifier.padding(end = 6.dp).size(10.dp).clip(CircleShape).background(if (i < f.doneWeek) accent else insetColor()))
+                        }
+                        T("  ${f.doneWeek} of ${f.plannedWeek} this week", 13.sp, th.muted)
+                    }
+                }
+                f.waterMl?.takeIf { it > 0 }?.let { Spacer(Modifier.height(6.dp)); T("Water today ${nf.format(it.toLong())} ml", 13.sp, th.muted) }
+                Spacer(Modifier.height(12.dp))
+                if (f.checkinDate != null) {
+                    val ticks = listOf("Mood" to f.checkinMood, "Metrics" to f.checkinMetrics, "Photo" to f.checkinPhoto)
+                    T("Sunday check-in " + (runCatching { LocalDate.parse(f.checkinDate).format(DateTimeFormatter.ofPattern("d MMM", UK)) }.getOrNull() ?: f.checkinDate), 13.sp, th.muted)
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ticks.forEach { (n, done) ->
+                            Box(Modifier.clip(RoundedCornerShape(50)).background(if (done) accent.copy(alpha = 0.16f) else insetColor()).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                T((if (done) "\u2713 " else "") + n, 13.sp, if (done) th.fg else th.muted, weight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                } else T("No check-in yet", 13.sp, th.muted)
                 return@HCard
             }
             T(f.workoutToday?.let { if (f.workoutDone) "$it - done" else it } ?: "No workout planned today", 16.sp, th.fg, weight = FontWeight.SemiBold)
@@ -1632,13 +1730,14 @@ class MainActivity : ComponentActivity() {
     private fun Tile(label: String, value: String, sub: String?, tc: Color, modifier: Modifier, onClick: (() -> Unit)? = null) {
         val th = LocalTh.current
         Column(
-            modifier.heightIn(min = 92.dp).card(16.dp, tc).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(12.dp),
+            modifier.heightIn(min = 92.dp).card(16.dp, tc).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(if (th.flat) 16.dp else 12.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            T(label, 12.sp, if (th.glass) th.muted else lerp(th.fg, tc, 0.75f), weight = FontWeight.SemiBold, maxLines = 2, caps = true)
+            if (th.flat) T(label, 13.sp, th.muted, maxLines = 2)
+            else T(label, 12.sp, if (th.glass) th.muted else lerp(th.fg, tc, 0.75f), weight = FontWeight.SemiBold, maxLines = 2, caps = true)
             Column {
-                T(value, if (th.flat) 30.sp else 26.sp, th.fg, weight = FontWeight.Bold, maxLines = 1, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
-                if (sub != null) T(sub, 11.sp, th.muted, maxLines = 1, caps = true)
+                T(value, if (th.flat) 24.sp else 26.sp, th.fg, weight = FontWeight.Bold, maxLines = 1, tracking = if (th.flat) (-0.4).sp else TextUnit.Unspecified)
+                if (sub != null) T(sub, if (th.flat) 13.sp else 11.sp, th.muted, maxLines = 1, caps = true)
             }
         }
     }
@@ -1659,9 +1758,9 @@ class MainActivity : ComponentActivity() {
         Section(title) {
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 pages.forEach { (n, u) ->
-                    Box(Modifier.clip(RoundedCornerShape(14.dp)).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, tc, 0.12f))
+                    Box(Modifier.clip(RoundedCornerShape(WoozyTokens.Radius.tile)).background(if (th.glass) Color(0x1FFFFFFF) else if (th.flat) th.panel else lerp(th.panel, tc, 0.12f))
                         .clickable { open(u) }.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        T(n, 14.sp, if (th.glass) th.fg else lerp(th.fg, tc, 0.75f), weight = FontWeight.SemiBold, caps = true)
+                        T(n, 15.sp, if (th.glass || th.flat) th.fg else lerp(th.fg, tc, 0.75f), weight = FontWeight.SemiBold, caps = true)
                     }
                 }
             }
@@ -1671,12 +1770,18 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun TasksPanel(s: Snapshot, list: List<Task>?, empty: String = "Nothing to do. Nice.", groupBy: String? = null) {
         val th = LocalTh.current
-        @Composable fun item(t: Task) {
-            Column(Modifier.fillMaxWidth().clickable { open(t.url) }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        @Composable fun item(t: Task, index: Int) {
+            // Woozy rows: 1px hairline between rows (inset to the text), 15sp title, 13sp muted meta.
+            val divide = th.flat && index > 0
+            Column(
+                Modifier.fillMaxWidth().clickable { open(t.url) }
+                    .then(if (divide) Modifier.drawBehind { drawLine(th.fg.copy(alpha = if (th.dark) 0.12f else 0.08f), Offset(16.dp.toPx(), 0f), Offset(size.width - 16.dp.toPx(), 0f), 1f) } else Modifier)
+                    .padding(horizontal = 16.dp, vertical = if (th.flat) 12.dp else 10.dp),
+            ) {
                 T(t.title, 15.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
                 val meta = listOf(if (groupBy == "area") null else t.area, if (groupBy == "lane") null else t.lane, t.due.take(10).takeIf { it.isNotEmpty() }?.let { "due " + fmtDate(it) })
                     .filter { !it.isNullOrBlank() }.joinToString(" · ")
-                if (meta.isNotEmpty()) T(meta, 11.sp, th.muted, caps = true)
+                if (meta.isNotEmpty()) T(meta, if (th.flat) 13.sp else 11.sp, th.muted, caps = true)
             }
         }
         Panel {
@@ -1694,10 +1799,10 @@ class MainActivity : ComponentActivity() {
                     val groups = list.groupBy { (if (groupBy == "area") it.area else it.lane).ifBlank { "Other" } }
                     groups.entries.forEach { (g, items) ->
                         Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp)) { T(g, 11.sp, th.muted, weight = FontWeight.Bold, caps = true) }
-                        items.take(6).forEach { item(it) }
+                        items.take(6).forEachIndexed { i, t -> item(t, i) }
                     }
                 }
-                else -> list.take(8).forEach { item(it) }
+                else -> list.take(8).forEachIndexed { i, t -> item(t, i) }
             }
         }
     }
