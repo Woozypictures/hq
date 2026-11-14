@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -540,7 +541,7 @@ object NoIndication : androidx.compose.foundation.IndicationNodeFactory {
             val press = androidx.compose.animation.core.Animatable(1f)
             override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
                 val k = press.value
-                if (k == 1f) drawContent() else androidx.compose.ui.graphics.drawscope.scale(k, k) { this@draw.drawContent() }
+                if (k == 1f) drawContent() else scale(k, k) { this@draw.drawContent() }
             }
             override fun onAttach() {
                 coroutineScope.launch {
