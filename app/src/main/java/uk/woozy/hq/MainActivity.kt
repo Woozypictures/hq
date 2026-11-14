@@ -370,19 +370,20 @@ class MainActivity : ComponentActivity() {
         val backdrop = rememberGlassBackdrop()
         val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + GlassNavHeight + GlassNavLift
         Box(Modifier.fillMaxSize().background(th.bg)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().glassSource(backdrop)) {
-            Header(s)
+        Column(Modifier.fillMaxSize().glassSource(backdrop)) {
             val pages = when (tab) { 1 -> Links.LIFE_PAGES; 2 -> Links.HEALTH_PAGES; 3 -> Links.CAREER_PAGES; 4 -> Links.CREATE_PAGES; else -> emptyList() }
-            if (pages.isNotEmpty()) Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) { SubNav(th.tab[tab], pages, sub) { sub = it } }
             @OptIn(ExperimentalMaterial3Api::class)
             PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(scroll)
                     // Cards may go wide on a tablet (two columns); Notion sub-pages are text, so they stay narrower.
                     .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = if (sub.isEmpty()) 1280.dp else 760.dp)
+                    .statusBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp + navInset),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+                Header(s, tab)
+                if (pages.isNotEmpty()) SubNav(th.tab[tab], pages, sub) { sub = it }
                 when (tab) {
                     0 -> HomeTab(s) { tab = it }
                     1 -> LifeTab(s, sub)
@@ -393,6 +394,7 @@ class MainActivity : ComponentActivity() {
             }
             }
         }
+        GlassTopFade(backdrop, th.bg, Modifier.align(Alignment.TopCenter))
         GlassPillNav(
             items = TAB_NAMES.mapIndexed { i, n -> GlassItem(n, TAB_ICONS[i]) },
             selected = tab, onSelect = { tab = it; sub = "" },
@@ -403,13 +405,29 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Header(s: Snapshot) {
+    private fun Header(s: Snapshot, tab: Int) {
         val th = LocalTh.current
         val now = LocalDate.now(Cfg.zone)
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalAlignment = Alignment.Top) {
+        if (th.flat) {
+            // Same shape as Woozy Fit: small date line, big title, optional one-line note.
+            val lock = if (tab == 0) (s.tasks?.count { it.lane == "Do now" } ?: 0) else 0
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)) + (if (loading) "  -  refreshing" else ""), 14.sp, th.muted, weight = FontWeight.Medium)
+                    T(if (tab == 0) "Hello, ${Store.name(this@MainActivity).trim().substringBefore(' ')}" else TAB_NAMES[tab], 36.sp, th.fg, weight = FontWeight.Bold, tracking = (-1).sp)
+                    if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", 15.sp, th.muted)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (homeEditing) Pill("Done") { homeEditing = false }
+                    AvatarButton()
+                }
+            }
+            return
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
-                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
+                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), 32.sp, th.fg, weight = FontWeight.Bold, caps = true)
                 T(if (loading) "Refreshing..." else if (s.updated > 0) "HQ refreshed " + Fmt.clock(s.updated) else "", 11.sp, th.muted, caps = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -644,7 +662,7 @@ class MainActivity : ComponentActivity() {
         val hour = java.time.LocalTime.now(Cfg.zone).hour
         val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
         val lock = s.tasks?.count { it.lane == "Do now" } ?: 0
-        Column {
+        if (!th.flat) Column {
             T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
             if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", if (th.flat) 15.sp else 13.sp, th.muted)
         }

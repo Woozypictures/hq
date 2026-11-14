@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -90,19 +92,20 @@ class GlassStyle(
     val ink: Color,
     val muted: Color,
     val shadow: Color,
+    val outline: Color,
 )
 
 fun glassStyle(dark: Boolean, ink: Color, muted: Color): GlassStyle = if (dark) {
     GlassStyle(
         tint = Color(0xFF202124).copy(alpha = 0.58f), tintNoBlur = Color(0xFF202124).copy(alpha = 0.92f),
         rim = Color.White.copy(alpha = 0.14f), capsule = Color.White.copy(alpha = 0.14f),
-        ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.40f),
+        ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.50f), outline = Color.White.copy(alpha = 0.22f),
     )
 } else {
     GlassStyle(
         tint = Color.White.copy(alpha = 0.66f), tintNoBlur = Color.White.copy(alpha = 0.94f),
         rim = Color.White.copy(alpha = 0.70f), capsule = Color(0xFF1D1D1F).copy(alpha = 0.075f),
-        ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.16f),
+        ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.26f), outline = Color.Black.copy(alpha = 0.10f),
     )
 }
 
@@ -134,7 +137,7 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
     val canBlur = Build.VERSION.SDK_INT >= 31
     return this
         .onGloballyPositioned { pos = it.positionInRoot() }
-        .shadow(10.dp, shape, ambientColor = style.shadow, spotColor = style.shadow)
+        .shadow(16.dp, shape, ambientColor = style.shadow, spotColor = style.shadow)
         .clip(shape)
         .drawBehind {
             if (canBlur && size.width > 0f && size.height > 0f) {
@@ -147,6 +150,42 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
             drawRect(if (canBlur) style.tint else style.tintNoBlur)
         }
         .border(0.75.dp, style.rim, shape)
+        .border(1.dp, style.outline, shape)
+}
+
+
+/**
+ * Soft frosted fade under the status bar: content scrolling up blurs and dissolves into the page colour
+ * instead of being cut off. Place it as an overlay at the top of the Box that holds the screen.
+ */
+@Composable
+fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifier) {
+    val h = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 28.dp
+    val blurLayer = rememberGraphicsLayer()
+    var pos by remember { mutableStateOf(Offset.Zero) }
+    val canBlur = Build.VERSION.SDK_INT >= 31
+    Box(
+        modifier.fillMaxWidth().height(h)
+            .onGloballyPositioned { pos = it.positionInRoot() }
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black, 0.5f to Color.Black.copy(alpha = 0.8f), 1f to Color.Transparent),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                )
+            }
+            .drawBehind {
+                if (canBlur && size.width > 0f && size.height > 0f) {
+                    blurLayer.renderEffect = BlurEffect(18f, 18f, TileMode.Clamp)
+                    blurLayer.record(size = IntSize(size.width.toInt(), size.height.toInt())) {
+                        translate(backdrop.origin.x - pos.x, backdrop.origin.y - pos.y) { drawLayer(backdrop.layer) }
+                    }
+                    drawLayer(blurLayer)
+                }
+                drawRect(bg.copy(alpha = if (canBlur) 0.72f else 0.95f))
+            },
+    )
 }
 
 data class GlassItem(val label: String, val icon: ImageVector)
