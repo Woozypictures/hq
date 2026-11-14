@@ -362,6 +362,18 @@ fun SmoothRefreshBox(
     )
 }
 
+/** Loading placeholder in the shape of the content: soft bars that pulse, instead of the word "Loading". */
+@Composable
+fun SkeletonBlock(color: Color, modifier: Modifier = Modifier, lines: Int = 3) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "skeleton")
+    val a by t.animateFloat(0.35f, 0.75f, androidx.compose.animation.core.infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "pulse")
+    Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(lines) { i ->
+            Box(Modifier.fillMaxWidth(if (i == lines - 1) 0.55f else if (i % 2 == 0) 0.9f else 0.75f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(color.copy(alpha = color.alpha * a)))
+        }
+    }
+}
+
 data class GlassItem(val label: String, val icon: ImageVector)
 
 /**

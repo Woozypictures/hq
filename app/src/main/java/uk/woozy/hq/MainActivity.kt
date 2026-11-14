@@ -638,7 +638,7 @@ class MainActivity : ComponentActivity() {
         val blocks = pageBlocks[id]
         val err = pageErr[id]
         if (err != null) Flag(err)
-        if (blocks == null && err == null) Panel { Muted("Loading...") }
+        if (blocks == null && err == null) Panel { SkeletonBlock(LocalTh.current.fg.copy(alpha = 0.10f)) }
         if (blocks != null) {
             val pages = blocks.filter { it.kind == "page" }
             if (pages.isNotEmpty()) Section("Pages") {
@@ -1573,7 +1573,7 @@ class MainActivity : ComponentActivity() {
         val month = LocalDate.now(Cfg.zone).format(DateTimeFormatter.ofPattern("MMMM", UK))
         Section("Flat this month", "Notion", { open(Links.n("31d4afc93b0080d09181e30de2acf638")) }) {
             flatErr?.let { Flag(it) }
-            if (f == null && flatErr == null) Panel { Muted("Loading...") }
+            if (f == null && flatErr == null) Panel { SkeletonBlock(LocalTh.current.fg.copy(alpha = 0.10f)) }
             if (f != null) {
                 val due = if (f.expected > 0) f.expected else f.lodgerBudget
                 val lodgerIn = if (f.received > 0) f.received else due
