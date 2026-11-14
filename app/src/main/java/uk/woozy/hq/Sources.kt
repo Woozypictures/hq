@@ -470,6 +470,8 @@ object Repo {
      * Fast on-device refresh: Health Connect, Galaxy Watch readings and Woozy Fit only (no network, no Notion).
      * Runs on resume and every two minutes while HQ is open, so steps, heart rate and food feel live.
      */
+    private val storeLock = Any()
+
     suspend fun refreshLocal(c: Context): Snapshot = withContext(Dispatchers.IO) {
         val old = Store.load(c)
         coroutineScope {
@@ -479,8 +481,12 @@ object Repo {
             val fit = async { runCatching { FitSrc.read(c) }.getOrNull() }
             val f = fit.await() ?: old.fit
             val (h, x) = FitSrc.overlay(health.await() ?: old.health, extra.await() ?: old.healthX, f)
-            val s = old.copy(health = h, healthX = x, sport = sport.await() ?: old.sport, fit = f)
-            Store.save(c, s)
+            val sp = sport.await()
+            // Re-read the stored snapshot at save time: a slow Notion refresh may have saved fresh tasks while this ran.
+            val s = synchronized(storeLock) {
+                val cur = Store.load(c).copy(health = h, healthX = x, sport = sp ?: old.sport, fit = f)
+                Store.save(c, cur); cur
+            }
             Store.setLocalAt(c, System.currentTimeMillis())
             HqWidget.updateAll(c)
             s
@@ -490,6 +496,7 @@ object Repo {
     /** Pulls every source in parallel. A failed source keeps its last good value (if retaining is on) and is logged. */
     suspend fun refresh(c: Context, manual: Boolean = false): Snapshot = withContext(Dispatchers.IO) {
         val cfg = Cfg.get(c)
+        val startedAt = System.currentTimeMillis()
         val old = Store.load(c)
         val token = Store.token(c)
         val errors = mutableListOf<String>()
@@ -528,7 +535,7 @@ object Repo {
             val hVal = track("Health", hr, old.health)
             val xVal = if (hr.isSuccess) track("Health details", extra.await(), old.healthX) else old.healthX
             val (hOut, xOut) = FitSrc.overlay(hVal, xVal, fit)
-            val s = Snapshot(
+            val s0 = Snapshot(
                 updated = System.currentTimeMillis(),
                 tasks = track("Notion tasks", tasks.await(), old.tasks),
                 countdowns = track("Notion countdowns", cds.await(), old.countdowns),
@@ -541,7 +548,12 @@ object Repo {
                 history = if (hist == null) old.history else track("Health history", hist, old.history),
                 errors = errors.toList(),
             )
-            Store.save(c, s)
+            // If the on-device refresh saved newer health/Fit readings while Notion was slow, keep those.
+            val s = synchronized(storeLock) {
+                val cur = Store.load(c)
+                val out = if (Store.localAt(c) > startedAt) s0.copy(health = cur.health, healthX = cur.healthX, sport = cur.sport, fit = cur.fit) else s0
+                Store.save(c, out); out
+            }
             Store.setLocalAt(c, System.currentTimeMillis())
             HqWidget.updateAll(c)
             if (!manual) Notifier.afterRefresh(c, s, failed, 6)
