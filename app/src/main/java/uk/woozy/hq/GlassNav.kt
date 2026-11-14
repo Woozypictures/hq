@@ -44,6 +44,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
@@ -99,13 +102,13 @@ class GlassStyle(
 
 fun glassStyle(dark: Boolean, ink: Color, muted: Color): GlassStyle = if (dark) {
     GlassStyle(
-        tint = Color(0xFF202124).copy(alpha = 0.58f), tintNoBlur = Color(0xFF202124).copy(alpha = 0.92f),
+        tint = Color(0xFF1C1D1F).copy(alpha = 0.52f), tintNoBlur = Color(0xFF202124).copy(alpha = 0.92f),
         rim = Color.White.copy(alpha = 0.14f), capsule = Color.White.copy(alpha = 0.14f),
         ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.50f), outline = Color.White.copy(alpha = 0.22f),
     )
 } else {
     GlassStyle(
-        tint = Color.White.copy(alpha = 0.66f), tintNoBlur = Color.White.copy(alpha = 0.94f),
+        tint = Color.White.copy(alpha = 0.58f), tintNoBlur = Color.White.copy(alpha = 0.94f),
         rim = Color.White.copy(alpha = 0.70f), capsule = Color(0xFF1D1D1F).copy(alpha = 0.075f),
         ink = ink, muted = muted, shadow = Color.Black.copy(alpha = 0.26f), outline = Color.Black.copy(alpha = 0.10f),
     )
@@ -131,37 +134,92 @@ fun Modifier.glassSource(backdrop: GlassBackdrop): Modifier = this
         drawLayer(backdrop.layer)
     }
 
-/** A frosted glass surface in [shape]: blurred backdrop, translucent tint, hairline rim, soft shadow. [blur] is in dp. */
+/** True when the phone's "Remove animations" is on: glass drops its glow and springs and uses a thicker tint. */
 @Composable
-fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blur: Float = 20f): Modifier {
+fun rememberReduceMotion(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember {
+        runCatching { android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false)
+    }
+}
+
+/** Fine film grain, made once and tiled: the matte, misty feel of frosted glass (also hides blur banding on OLED). */
+private val grainShader: androidx.compose.ui.graphics.ShaderBrush by lazy {
+    val n = 128
+    val rnd = java.util.Random(7)
+    val px = IntArray(n * n) { val v = rnd.nextInt(256); android.graphics.Color.argb(255, v, v, v) }
+    val bmp = android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888)
+    androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(bmp.asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
+}
+
+/**
+ * A frosted glass surface in [shape], built in layers: blurred and colour-boosted backdrop, translucent tint,
+ * fine grain, a soft specular edge (bright on top, fading down the sides), and a two-layer shadow. [blur] is in dp.
+ */
+@Composable
+fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blur: Float = 22f): Modifier {
     val blurLayer = rememberGraphicsLayer()
     var pos by remember { mutableStateOf(Offset.Zero) }
     val canBlur = Build.VERSION.SDK_INT >= 31
+    val reduce = rememberReduceMotion()
+    val dark = style.tint.red < 0.5f
     return this
         .onGloballyPositioned { pos = it.positionInRoot() }
-        .shadow(16.dp, shape, ambientColor = style.shadow, spotColor = style.shadow)
+        .shadow(24.dp, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.45f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.4f))
+        .shadow(6.dp, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.55f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.6f))
         .clip(shape)
         .drawBehind {
-            if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, blur.dp.toPx())
-            drawRect(if (canBlur) style.tint else style.tintNoBlur)
+            if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, (if (dark) blur + 4f else blur).dp.toPx(), saturate = true)
+            val tint = if (!canBlur) style.tintNoBlur else if (reduce) style.tintNoBlur.copy(alpha = 0.8f) else style.tint
+            drawRect(tint)
+            drawRect(grainShader, alpha = if (dark) 0.04f else 0.03f, blendMode = androidx.compose.ui.graphics.BlendMode.Overlay)
+            // Specular edge: light catches the top rim and fades down the sides; a faint darker rim at the bottom.
+            val outline = shape.createOutline(size, layoutDirection, this)
+            drawOutline(
+                outline,
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = if (dark) 0.32f else 0.75f), 0.45f to Color.White.copy(alpha = if (dark) 0.06f else 0.12f),
+                    1f to Color.Black.copy(alpha = if (dark) 0.25f else 0.06f),
+                ),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+            )
         }
-        .border(0.75.dp, style.rim, shape)
         .border(1.dp, style.outline, shape)
 }
 
 /**
- * Draws the backdrop behind this surface, blurred. The copy is taken with a margin round the surface so text that
- * sits half under an edge is blurred exactly like text in the middle (no sharp words peeking in at the edges).
+ * Draws the backdrop behind this surface, blurred (and with colour lifted when [saturate], so it glows through
+ * instead of going grey). The copy is taken with a margin round the surface so text half under an edge is
+ * blurred exactly like text in the middle.
  */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlurredBackdrop(
-    blurLayer: GraphicsLayer, backdrop: GlassBackdrop, pos: Offset, radiusPx: Float,
+    blurLayer: GraphicsLayer, backdrop: GlassBackdrop, pos: Offset, radiusPx: Float, saturate: Boolean = false,
 ) {
     val m = (radiusPx * 2f).coerceAtLeast(1f)
-    blurLayer.renderEffect = BlurEffect(radiusPx, radiusPx, TileMode.Decal)
+    blurLayer.renderEffect = if (saturate && Build.VERSION.SDK_INT >= 31) {
+        val cm = android.graphics.ColorMatrix().apply { setSaturation(1.35f) }
+        android.graphics.RenderEffect.createChainEffect(
+            android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(cm)),
+            android.graphics.RenderEffect.createBlurEffect(radiusPx, radiusPx, android.graphics.Shader.TileMode.DECAL),
+        ).asComposeRenderEffect()
+    } else BlurEffect(radiusPx, radiusPx, TileMode.Decal)
     blurLayer.record(size = IntSize((size.width + m * 2).toInt(), (size.height + m * 2).toInt())) {
         translate(backdrop.origin.x - pos.x + m, backdrop.origin.y - pos.y + m) { drawLayer(backdrop.layer) }
     }
     translate(-m, -m) { drawLayer(blurLayer) }
+}
+
+/** A whole-screen frost (for behind the + menu): the page blurs and lightens instead of just going dark. */
+@Composable
+fun Modifier.frostScreen(backdrop: GlassBackdrop, style: GlassStyle): Modifier {
+    val blurLayer = rememberGraphicsLayer()
+    var pos by remember { mutableStateOf(Offset.Zero) }
+    val canBlur = Build.VERSION.SDK_INT >= 31
+    val dark = style.tint.red < 0.5f
+    return this.onGloballyPositioned { pos = it.positionInRoot() }.drawBehind {
+        if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, 18.dp.toPx(), saturate = true)
+        drawRect(if (dark) Color.Black.copy(alpha = if (canBlur) 0.35f else 0.6f) else Color.White.copy(alpha = if (canBlur) 0.35f else 0.7f))
+    }
 }
 
 /**
@@ -224,14 +282,20 @@ fun GlassPopupMenu(
     backdrop: GlassBackdrop, style: GlassStyle, bottomInset: androidx.compose.ui.unit.Dp,
 ) {
     val haptic = LocalHapticFeedback.current
-    androidx.compose.animation.AnimatedVisibility(visible = visible, enter = androidx.compose.animation.fadeIn(tween(120)), exit = androidx.compose.animation.fadeOut(tween(120))) {
+    val reduce = rememberReduceMotion()
+    androidx.compose.animation.AnimatedVisibility(visible = visible, enter = androidx.compose.animation.fadeIn(tween(160)), exit = androidx.compose.animation.fadeOut(tween(140))) {
         Box(
             Modifier.fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.18f))
+                .frostScreen(backdrop, style)
                 .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss),
         ) {
+            // The bubble grows out of the + in the bottom-right corner, on a spring.
+            val grow = remember { androidx.compose.animation.core.Animatable(if (reduce) 1f else 0.6f) }
+            androidx.compose.runtime.LaunchedEffect(Unit) { grow.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 520f)) }
             Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = bottomInset + 6.dp).width(236.dp)
+                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = bottomInset + 6.dp)
+                    .graphicsLayer { scaleX = grow.value; scaleY = grow.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f) }
+                    .width(236.dp)
                     .glass(backdrop, style, RoundedCornerShape(26.dp), blur = 24f)
                     .selectable(selected = false, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = {})
                     .padding(vertical = 6.dp),
@@ -329,7 +393,29 @@ fun GlassPillNav(
         BoxWithConstraints(Modifier.weight(1f, fill = true).height(GlassNavHeight).glass(backdrop, style, pill)) {
             val pad = 6.dp
             val itemW = (maxWidth - pad * 2) / (items.size + (if (actionIcon != null) 1 else 0))
-            val x by animateDpAsState(pad + itemW * selected, tween(280, easing = FastOutSlowInEasing), label = "capsule")
+            val reduce = rememberReduceMotion()
+            val x by animateDpAsState(
+                pad + itemW * selected,
+                if (reduce) tween(0) else androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 420f), label = "capsule",
+            )
+            // Press glow: a soft light that blooms from the touched slot across the glass.
+            var glowAt by remember { mutableStateOf(-1) }
+            var glowTick by remember { mutableStateOf(0) }
+            val glow = remember { androidx.compose.animation.core.Animatable(0f) }
+            androidx.compose.runtime.LaunchedEffect(glowTick) {
+                if (glowAt >= 0 && !reduce) { glow.snapTo(0.9f); glow.animateTo(0f, tween(520, easing = FastOutSlowInEasing)) }
+            }
+            val glowCol = style.ink
+            Box(Modifier.fillMaxSize().drawBehind {
+                if (glow.value > 0f && glowAt >= 0) {
+                    val cx = (pad + itemW * (glowAt + 0.5f)).toPx()
+                    val r = size.height * (1.2f + (1f - glow.value) * 1.4f)
+                    drawCircle(
+                        androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f * glow.value), Color.Transparent), center = Offset(cx, size.height / 2), radius = r),
+                        radius = r, center = Offset(cx, size.height / 2),
+                    )
+                }
+            })
             Box(
                 Modifier.offset(x = x, y = pad).width(itemW).height(GlassNavHeight - pad * 2)
                     .clip(RoundedCornerShape(26.dp)).background(style.capsule),
@@ -340,6 +426,7 @@ fun GlassPillNav(
                     Column(
                         Modifier.weight(1f).fillMaxHeight().selectable(selected = on, role = Role.Tab, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
                             if (!on) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            glowAt = i; glowTick++
                             onSelect(i)
                         },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
@@ -358,7 +445,7 @@ fun GlassPillNav(
                 if (actionIcon != null) {
                     Box(
                         Modifier.weight(1f).fillMaxHeight().selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onAction()
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); glowAt = items.size; glowTick++; onAction()
                         },
                         contentAlignment = Alignment.Center,
                     ) {
