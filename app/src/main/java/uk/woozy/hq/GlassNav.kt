@@ -661,9 +661,9 @@ object WoozyTokens {
     }
     object Glass {
         val blurLight = 22.dp; val blurDark = 26.dp; const val saturate = 1.2f
-        val tintLight = Color(0xFFEEF0F3).copy(alpha = 0.58f); val tintDark = Color(0xFF1C1D1F).copy(alpha = 0.52f)
+        val tintLight = Color(0xFFF8F9FB).copy(alpha = 0.62f); val tintDark = Color(0xFF1C1D1F).copy(alpha = 0.52f)
         val fallbackLight = Color.White.copy(alpha = 0.94f); val fallbackDark = Color(0xFF202124).copy(alpha = 0.92f)
-        const val grainLight = 0.03f; const val grainDark = 0.04f
+        const val grainLight = 0.02f; const val grainDark = 0.03f
         val ambientBlur = 24.dp; val keyBlur = 7.dp; val keyOffset = 3.dp
     }
     object Radius {

@@ -998,7 +998,7 @@ class MainActivity : ComponentActivity() {
             Panel {
                 if (brief.isNotEmpty()) Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) { T(brief, 14.sp, th.fg) }
                 if (q != null && q.optString("text").isNotEmpty()) Column(Modifier.clickable { open("https://www.brainyquote.com/quote_of_the_day") }.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    T("\u201C" + q.optString("text") + "\u201D", 14.sp, th.fg, weight = FontWeight.Medium)
+                    T("\u201C" + q.optString("text") + "\u201D", 14.sp, th.fg, weight = FontWeight.Medium, italic = true)
                     if (q.optString("by").isNotEmpty()) T(q.optString("by"), 11.sp, th.muted, caps = true)
                 }
             }
@@ -1051,7 +1051,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun HintsCard(s: Snapshot) {
-        val list = s.feed?.optJSONArray("connect_hints").strs().filter { !(s.health != null && it.contains("Health Connect", true)) }
+        val list = s.feed?.optJSONArray("connect_hints").strs().filter { !(s.health != null && it.contains("Health Connect", true)) && !it.contains("strava", true) }
         if (list.isEmpty()) return
         Section("Connect to unlock") { Panel { list.forEach { Line(it) } } }
     }
@@ -1140,7 +1140,7 @@ class MainActivity : ComponentActivity() {
     private fun PlanCard(s: Snapshot) {
         val h = s.feed?.optJSONObject("health")
         val plan = s.fit?.workoutToday?.takeIf { it.isNotBlank() && !it.equals("null", true) } ?: h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" }
-        val hint = h?.optString("hint")?.takeIf { it.isNotEmpty() && !(s.health != null && it.contains("Health Connect", true)) }
+        val hint = h?.takeIf { !it.isNull("hint") }?.optString("hint")?.takeIf { it.isNotBlank() && !it.equals("null", true) && !it.contains("strava", true) && !(s.health != null && it.contains("Health Connect", true)) }
         if (plan == null && hint == null) return
         Section("Training plan", "Woozy Fit", { openFit() }) {
             Panel {
