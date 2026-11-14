@@ -538,13 +538,20 @@ class MainActivity : ComponentActivity() {
         val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
         val dragging = draggingKey == key
         val gap = with(LocalDensity.current) { 20.dp.toPx() }
-        val wiggle = rememberInfiniteTransition(label = "wiggle")
+        // Wiggle only runs while rearranging. An always-on infinite transition kept every Home card asking for frames
+        // at 120Hz even when nothing moved (battery, and frame time stolen from scrolling).
         val phase = (key.hashCode() and 3) * 40
-        val angle by wiggle.animateFloat(-0.9f, 0.9f, infiniteRepeatable(tween(130 + phase, easing = LinearEasing), RepeatMode.Reverse), label = "a")
+        val wig = remember { androidx.compose.animation.core.Animatable(0f) }
+        LaunchedEffect(editing && !dragging) {
+            if (editing && !dragging) while (true) {
+                wig.animateTo(0.9f, tween(130 + phase, easing = LinearEasing)); wig.animateTo(-0.9f, tween(130 + phase, easing = LinearEasing))
+            } else wig.snapTo(0f)
+        }
+
         Box(
             Modifier.onSizeChanged { dragHeights[key] = it.height }
                 .graphicsLayer {
-                    if (editing && !dragging) rotationZ = angle
+                    if (editing && !dragging) rotationZ = wig.value
                     if (dragging) { translationY = dragOffset; scaleX = 1.03f; scaleY = 1.03f; shadowElevation = 24f }
                 }
                 .zIndex(if (dragging) 1f else 0f)

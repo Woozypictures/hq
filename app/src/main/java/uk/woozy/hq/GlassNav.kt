@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -182,13 +183,27 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
         .shadow(WoozyTokens.Glass.ambientBlur, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.45f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.4f))
         // Three-layer depth: ambient (above), a key shadow dropped 3dp (light from above) and a tight contact shadow
         // that seats the glass on the page.
-        .drawBehind {
-            val path = androidx.compose.ui.graphics.Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawBehind)) }.asAndroidPath()
-            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.TRANSPARENT }
-            paint.setShadowLayer(WoozyTokens.Glass.keyBlur.toPx(), 0f, WoozyTokens.Glass.keyOffset.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.7f).toArgb())
-            drawContext.canvas.nativeCanvas.drawPath(path, paint)
-            paint.setShadowLayer(1.5.dp.toPx(), 0f, 0.5.dp.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.55f).toArgb())
-            drawContext.canvas.nativeCanvas.drawPath(path, paint)
+        // Key and contact shadows are rasterised once per size into a bitmap and then just drawn: a blurred
+        // shadow layer re-rendered every frame of a 120Hz scroll was wasted GPU work for a shape that never changes.
+        .drawWithCache {
+            val key = WoozyTokens.Glass.keyBlur.toPx()
+            val off = WoozyTokens.Glass.keyOffset.toPx()
+            val pad = (key * 2 + off).toInt() + 2
+            val w = size.width.toInt() + pad * 2
+            val h = size.height.toInt() + pad * 2
+            val bmp = if (w > 0 && h > 0 && size.width > 0f) {
+                val b = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                val cv = android.graphics.Canvas(b)
+                cv.translate(pad.toFloat(), pad.toFloat())
+                val path = androidx.compose.ui.graphics.Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }.asAndroidPath()
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.TRANSPARENT }
+                paint.setShadowLayer(key, 0f, off, style.shadow.copy(alpha = style.shadow.alpha * 0.7f).toArgb())
+                cv.drawPath(path, paint)
+                paint.setShadowLayer(1.5.dp.toPx(), 0f, 0.5.dp.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.55f).toArgb())
+                cv.drawPath(path, paint)
+                b.asImageBitmap()
+            } else null
+            onDrawBehind { if (bmp != null) drawImage(bmp, Offset(-pad.toFloat(), -pad.toFloat())) }
         }
         .clip(shape)
         .drawBehind {
@@ -260,6 +275,22 @@ fun GlassBottomFade(bg: Color, modifier: Modifier = Modifier) {
     )
 }
 
+private val effectCache = HashMap<Long, androidx.compose.ui.graphics.RenderEffect>()
+
+/** One blur (plus optional saturation) RenderEffect per radius, shared by every glass surface. Main thread only. */
+private fun glassEffect(radiusPx: Float, saturate: Boolean): androidx.compose.ui.graphics.RenderEffect {
+    val key = (radiusPx * 10f).toLong() * 2 + (if (saturate) 1 else 0)
+    return effectCache.getOrPut(key) {
+        if (saturate && Build.VERSION.SDK_INT >= 31) {
+            val cm = android.graphics.ColorMatrix().apply { setSaturation(WoozyTokens.Glass.saturate) }
+            android.graphics.RenderEffect.createChainEffect(
+                android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(cm)),
+                android.graphics.RenderEffect.createBlurEffect(radiusPx, radiusPx, android.graphics.Shader.TileMode.DECAL),
+            ).asComposeRenderEffect()
+        } else BlurEffect(radiusPx, radiusPx, TileMode.Decal)
+    }
+}
+
 /**
  * Draws the backdrop behind this surface, blurred (and with colour lifted when [saturate], so it glows through
  * instead of going grey). The copy is taken with a margin round the surface so text half under an edge is
@@ -269,13 +300,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlurredBackdrop
     blurLayer: GraphicsLayer, backdrop: GlassBackdrop, pos: Offset, radiusPx: Float, saturate: Boolean = false,
 ) {
     val m = (radiusPx * 2f).coerceAtLeast(1f)
-    blurLayer.renderEffect = if (saturate && Build.VERSION.SDK_INT >= 31) {
-        val cm = android.graphics.ColorMatrix().apply { setSaturation(WoozyTokens.Glass.saturate) }
-        android.graphics.RenderEffect.createChainEffect(
-            android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(cm)),
-            android.graphics.RenderEffect.createBlurEffect(radiusPx, radiusPx, android.graphics.Shader.TileMode.DECAL),
-        ).asComposeRenderEffect()
-    } else BlurEffect(radiusPx, radiusPx, TileMode.Decal)
+    // The effect is built once per radius and reused: allocating a colour matrix and two RenderEffects every frame
+    // (and re-setting the layer's effect, which invalidates its GPU cache) was the main per-frame cost while scrolling.
+    val eff = glassEffect(radiusPx, saturate)
+    if (blurLayer.renderEffect !== eff) blurLayer.renderEffect = eff
     blurLayer.record(size = IntSize((size.width + m * 2).toInt(), (size.height + m * 2).toInt())) {
         translate(backdrop.origin.x - pos.x + m, backdrop.origin.y - pos.y + m) { drawLayer(backdrop.layer) }
     }
