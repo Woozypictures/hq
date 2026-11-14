@@ -1126,7 +1126,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun PlanCard(s: Snapshot) {
         val h = s.feed?.optJSONObject("health")
-        val plan = s.fit?.workoutToday ?: h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" }
+        val plan = s.fit?.workoutToday?.takeIf { it.isNotBlank() && !it.equals("null", true) } ?: h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" }
         val hint = h?.optString("hint")?.takeIf { it.isNotEmpty() && !(s.health != null && it.contains("Health Connect", true)) }
         if (plan == null && hint == null) return
         Section("Training plan", "Woozy Fit", { openFit() }) {
@@ -1340,7 +1340,7 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val st = diag["Health"]
         val parts = mutableListOf<String>()
-        parts += if (recorded != null) "Recorded " + Fmt.clock(recorded) else "No recorded time"
+        parts += if (recorded != null) "Recorded " + Fmt.clock(recorded) else "Nothing recorded yet today"
         if (st != null && st.lastSuccess > 0) parts += "read " + Fmt.clock(st.lastSuccess)
         if (st != null && !st.ok) parts += "showing saved data"
         val old = recorded != null && System.currentTimeMillis() - recorded > 36 * 3_600_000L
@@ -1505,7 +1505,8 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 T(label, 13.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold)
-                T(if (has) nf.format(value!!.toLong()) + (if (target > 0) " / ${nf.format(target)}" else "") + " $unit" else "- " + (if (target > 0) "/ ${nf.format(target)} $unit" else ""), 13.sp, th.muted)
+                // Nothing logged reads as 0 of the target (like Woozy Fit), not a dash.
+                T((if (has) nf.format(value!!.toLong()) else "0") + (if (target > 0) " / ${nf.format(target)}" else "") + " $unit", 13.sp, th.muted)
             }
             Spacer(Modifier.height(4.dp))
             Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.28f))) {
@@ -1533,14 +1534,14 @@ class MainActivity : ComponentActivity() {
             if (full) {
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Donut(if (target > 0 && eaten != null) (eaten / target).toFloat() else 0f, C_ENERGY, eaten?.let { nf.format(it.toLong()) } ?: "-", "Consumed")
+                    Donut(if (target > 0 && eaten != null) (eaten / target).toFloat() else 0f, C_ENERGY, eaten?.let { nf.format(it.toLong()) } ?: "0", "Consumed")
                     Donut(if (burned != null) 1f else 0f, C_FAT, burned?.let { nf.format(it.toLong()) } ?: "-", "Expenditure")
                     Donut(if (left != null && target > 0) (left / target).toFloat().coerceIn(0f, 1f) else 0f, C_CARBS, left?.let { nf.format(it.toLong()) } ?: "-", "Remaining")
                 }
                 Spacer(Modifier.height(10.dp))
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    T(eaten?.let { nf.format(it.toLong()) } ?: "-", 30.sp, th.fg, weight = FontWeight.Bold)
+                    T(eaten?.let { nf.format(it.toLong()) } ?: "0", 30.sp, th.fg, weight = FontWeight.Bold)
                     if (target > 0) T(" / ${nf.format(target)} kcal", 14.sp, th.muted, modifier = Modifier.padding(bottom = 4.dp))
                 }
                 if (left != null && eaten != null) T((if (left >= 0) nf.format(left.toLong()) + " left" else nf.format((-left).toLong()) + " over"), 12.sp, th.muted)

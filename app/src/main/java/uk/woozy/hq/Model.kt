@@ -31,7 +31,7 @@ data class FitSummary(
         private fun JSONObject.d(k: String): Double? = if (has(k) && !isNull(k)) getDouble(k) else null
         private fun JSONObject.l(k: String): Long? = if (has(k) && !isNull(k)) getLong(k) else null
         private fun JSONObject.i(k: String): Int? = if (has(k) && !isNull(k)) getInt(k) else null
-        private fun JSONObject.s(k: String): String? = if (has(k) && !isNull(k)) getString(k) else null
+        private fun JSONObject.s(k: String): String? = if (has(k) && !isNull(k)) getString(k).takeIf { it.isNotBlank() && !it.equals("null", true) } else null
         fun from(o: JSONObject) = FitSummary(o.optString("date"), o.d("kcal"), o.d("p"), o.d("c"), o.d("f"), o.d("w"),
             o.d("kt"), o.d("pt"), o.d("ct"), o.d("ft"), o.d("kg"), o.l("kga"), o.s("wo"), o.optBoolean("wd"), o.i("dw"), o.i("pw"),
             o.s("cd"), o.optBoolean("cm"), o.optBoolean("cx"), o.optBoolean("cp"), o.optLong("at"), o.d("st"))

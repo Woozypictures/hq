@@ -270,7 +270,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlurredBackdrop
 ) {
     val m = (radiusPx * 2f).coerceAtLeast(1f)
     blurLayer.renderEffect = if (saturate && Build.VERSION.SDK_INT >= 31) {
-        val cm = android.graphics.ColorMatrix().apply { setSaturation(1.35f) }
+        val cm = android.graphics.ColorMatrix().apply { setSaturation(WoozyTokens.Glass.saturate) }
         android.graphics.RenderEffect.createChainEffect(
             android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(cm)),
             android.graphics.RenderEffect.createBlurEffect(radiusPx, radiusPx, android.graphics.Shader.TileMode.DECAL),
@@ -632,8 +632,8 @@ object WoozyTokens {
         val ok = Color(0xFF8FD18F); val warn = Color(0xFFFF8A7A)
     }
     object Glass {
-        val blurLight = 22.dp; val blurDark = 26.dp; const val saturate = 1.35f
-        val tintLight = Color(0xFFEEF0F3).copy(alpha = 0.52f); val tintDark = Color(0xFF1C1D1F).copy(alpha = 0.52f)
+        val blurLight = 22.dp; val blurDark = 26.dp; const val saturate = 1.2f
+        val tintLight = Color(0xFFEEF0F3).copy(alpha = 0.58f); val tintDark = Color(0xFF1C1D1F).copy(alpha = 0.52f)
         val fallbackLight = Color.White.copy(alpha = 0.94f); val fallbackDark = Color(0xFF202124).copy(alpha = 0.92f)
         const val grainLight = 0.03f; const val grainDark = 0.04f
         val ambientBlur = 24.dp; val keyBlur = 7.dp; val keyOffset = 3.dp

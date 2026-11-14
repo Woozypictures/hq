@@ -387,7 +387,7 @@ object FitSrc {
                 kcalTarget = dbl("kcal_target"), proteinTarget = dbl("protein_target_g"),
                 netCarbsTarget = dbl("net_carbs_target_g"), fatTarget = dbl("fat_target_g"),
                 weightKg = dbl("weight_kg"), weightAt = lng("weight_at_ms"),
-                workoutToday = workout?.takeIf { it != "0" && !it.equals("false", true) },
+                workoutToday = workout?.takeIf { it != "0" && !it.equals("false", true) && !it.equals("null", true) },
                 workoutDone = (lng("workout_today_done") ?: 0L) != 0L || str("workout_today_done").equals("true", true),
                 doneWeek = lng("workouts_done_week")?.toInt(), plannedWeek = lng("workouts_planned_week")?.toInt(),
                 // The three check-in columns are 1 when ticked, 0 when not.
