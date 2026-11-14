@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Typography for the whole app: Google Sans (SIL Open Font License 1.1), bundled in res/font so it renders the same on any device.
@@ -83,6 +84,21 @@ internal val EVERFIT_DARK = Th(
 )
 internal val LocalTh = staticCompositionLocalOf { WOOZY }
 
+
+/**
+ * One type scale for both Woozy apps (Apple-style steps): 11 micro, 13 caption, 15 body, 17 headline, 20, 24, 28, 34,
+ * then display sizes as given. Every size passed in snaps to the nearest step, so both apps share the same rhythm.
+ */
+internal fun snapType(size: TextUnit): TextUnit {
+    if (!size.isSp) return size
+    val v = size.value
+    val s = when {
+        v <= 11.5f -> 11f; v <= 13.9f -> 13f; v <= 15.9f -> 15f; v <= 18.5f -> 17f
+        v <= 21.9f -> 20f; v <= 25.9f -> 24f; v <= 30.9f -> 28f; v <= 36.9f -> 34f; else -> v
+    }
+    return s.sp
+}
+
 @Composable
 internal fun T(
     text: String, size: TextUnit, color: Color, modifier: Modifier = Modifier,
@@ -93,7 +109,7 @@ internal fun T(
     Text(
         if (caps && th.glass) text.uppercase() else text, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
         style = TextStyle(
-            fontFamily = GSans, fontSize = size, color = color, fontWeight = weight, letterSpacing = tracking,
+            fontFamily = GSans, fontSize = snapType(size), color = color, fontWeight = weight, letterSpacing = tracking,
             fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
             textAlign = if (center) TextAlign.Center else TextAlign.Start,
             fontFeatureSettings = "tnum", // tabular numerals so figures and times line up
