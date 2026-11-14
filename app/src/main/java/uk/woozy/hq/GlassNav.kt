@@ -120,6 +120,14 @@ fun glassStyle(dark: Boolean, ink: Color, muted: Color): GlassStyle = if (dark) 
     )
 }
 
+/**
+ * Pixel-snapped rim widths. An edge stroke is centred on the clip, so only its inner half shows: snap it to an even
+ * pixel count so the visible half is a whole pixel (crisp at 1x, 2x, 3x and the S25's 3.5x, never a soft 1.75px).
+ */
+internal fun crispEdge(px: Float): Float = (kotlin.math.round(px / 2f) * 2f).coerceAtLeast(2f)
+/** A free-standing line snapped to whole pixels, at least one. */
+internal fun crispLine(px: Float): Float = kotlin.math.round(px).coerceAtLeast(1f)
+
 /** What the glass looks at. Wrap the screen content in [glassSource]; surfaces then blur what is behind them. */
 class GlassBackdrop internal constructor(internal val layer: GraphicsLayer) {
     internal var origin by mutableStateOf(Offset.Zero)
@@ -198,17 +206,17 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
                     0f to Color.White.copy(alpha = if (dark) 0.32f else 0.75f), 0.45f to Color.White.copy(alpha = if (dark) 0.06f else 0.12f),
                     1f to Color.Black.copy(alpha = if (dark) 0.25f else 0.06f),
                 ),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(crispEdge(1.dp.toPx())),
             )
             // Inner rim highlight: a second, finer line 1dp inside the top edge, like light on a bevel.
-            val i = 1.dp.toPx()
+            val i = kotlin.math.round(1.dp.toPx())
             if (size.width > i * 4 && size.height > i * 4) {
                 val inner = shape.createOutline(androidx.compose.ui.geometry.Size(size.width - i * 2, size.height - i * 2), layoutDirection, this)
                 translate(i, i) {
                     drawOutline(
                         inner,
                         androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (dark) 0.14f else 0.45f), 0.3f to Color.Transparent, endY = size.height),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(0.75.dp.toPx()),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(crispLine(0.75.dp.toPx())),
                     )
                 }
             }
@@ -219,7 +227,7 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
             drawOutline(
                 shape.createOutline(size, layoutDirection, this),
                 androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 0.5f to Color.Transparent, 1f to style.outline),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(crispEdge(1.dp.toPx())),
             )
         }
 }
@@ -234,7 +242,7 @@ fun Modifier.solidGlass(style: GlassStyle, shape: Shape): Modifier = this
         drawOutline(
             shape.createOutline(size, layoutDirection, this),
             androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (dark) 0.25f else 0.8f), 1f to Color.Black.copy(alpha = if (dark) 0.2f else 0.06f)),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(crispEdge(1.dp.toPx())),
         )
     }
 
@@ -519,7 +527,7 @@ fun GlassPillNav(
                         drawRoundRect(
                             androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = if (style.tint.red < 0.5f) 0.10f else 0.35f), 0.5f to Color.Transparent),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(WoozyTokens.Radius.capsule.toPx()),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(0.75.dp.toPx()),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(crispLine(0.75.dp.toPx())),
                         )
                     },
             )
