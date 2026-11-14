@@ -58,11 +58,34 @@ fun friendly(m: String): String = when {
     "HTTP 401" in m -> "Notion rejected the token. Re-copy it from your HQ connection and paste it in Settings."
     "HTTP 404" in m || "object_not_found" in m -> "Notion can't see that page. On T O D A Y (and each hub) open the ... menu > Connections > add HQ."
     "HTTP 403" in m -> "HQ's Notion connection doesn't have permission for that page."
+    "HTTP 429" in m -> "Notion is busy (rate limited). HQ waited and retried; it will try again on the next refresh."
     "UnknownHost" in m || "Unable to resolve" in m -> "No internet."
     else -> m
 }
 
+/**
+ * HTTP with polite retries: a 429 (Notion's rate limit, about 3 requests a second) waits for Retry-After, and a
+ * 500/502/503/504 or a dropped connection backs off 1s then 2s. Three tries at most, never more than 8s per wait.
+ */
 private fun http(url: String, method: String = "GET", headers: Map<String, String> = emptyMap(), body: String? = null): String {
+    var attempt = 0
+    while (true) {
+        attempt++
+        try {
+            return httpOnce(url, method, headers, body)
+        } catch (e: RetryableHttp) {
+            if (attempt >= 3) throw IOException(e.message)
+            Thread.sleep((e.waitMs ?: (1000L shl (attempt - 1))).coerceIn(250L, 8000L))
+        } catch (e: java.net.SocketTimeoutException) {
+            if (attempt >= 3) throw e
+            Thread.sleep(1000L shl (attempt - 1))
+        }
+    }
+}
+
+private class RetryableHttp(msg: String, val waitMs: Long?) : Exception(msg)
+
+private fun httpOnce(url: String, method: String, headers: Map<String, String>, body: String?): String {
     val c = URL(url).openConnection() as HttpURLConnection
     c.requestMethod = method
     c.connectTimeout = 15000
@@ -74,9 +97,16 @@ private fun http(url: String, method: String = "GET", headers: Map<String, Strin
     }
     val code = c.responseCode
     val txt = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+    if (code == 429 || code in 500..504) {
+        val wait = c.getHeaderField("Retry-After")?.trim()?.toDoubleOrNull()?.let { (it * 1000).toLong() }
+        throw RetryableHttp("HTTP $code ${txt.take(160)}", wait)
+    }
     if (code !in 200..299) throw IOException("HTTP $code ${txt.take(160)}")
     return txt
 }
+
+/** At most three Notion requests in flight across HQ (tasks, countdowns, feed, pages and the avatar run in parallel). */
+private val notionGate = java.util.concurrent.Semaphore(3)
 
 data class Block(val kind: String, val text: String, val url: String, val checked: Boolean)
 
@@ -85,12 +115,16 @@ object NotionSrc {
     private const val COUNTDOWNS_DS = "7ec5d191-6cfa-4977-953f-9889beef130a"
     private const val FEED_PAGE = "4144afc9-3b00-8116-889c-f5fc44bf53df"
 
-    private fun call(token: String, method: String, path: String, body: JSONObject? = null): JSONObject =
-        JSONObject(http("https://api.notion.com/v1/$path", method, mapOf(
-            "Authorization" to "Bearer $token",
-            "Notion-Version" to "2025-09-03",
-            "Content-Type" to "application/json",
-        ), body?.toString()))
+    private fun call(token: String, method: String, path: String, body: JSONObject? = null): JSONObject {
+        notionGate.acquire()
+        try {
+            return JSONObject(http("https://api.notion.com/v1/$path", method, mapOf(
+                "Authorization" to "Bearer $token",
+                "Notion-Version" to "2025-09-03",
+                "Content-Type" to "application/json",
+            ), body?.toString()))
+        } finally { notionGate.release() }
+    }
 
     private fun joinText(a: JSONArray?): String =
         if (a == null) "" else (0 until a.length()).joinToString("") { a.getJSONObject(it).optString("plain_text") }
@@ -451,6 +485,27 @@ object FitSrc {
 }
 
 object Repo {
+    /**
+     * Fast on-device refresh: Health Connect, Galaxy Watch readings and Woozy Fit only (no network, no Notion).
+     * Runs on resume and every two minutes while HQ is open, so steps, heart rate and food feel live.
+     */
+    suspend fun refreshLocal(c: Context): Snapshot = withContext(Dispatchers.IO) {
+        val old = Store.load(c)
+        coroutineScope {
+            val health = async { runCatching { HealthSrc.read(c) }.getOrNull() }
+            val extra = async { runCatching { HealthExtraSrc.readExtra(c) }.getOrNull() }
+            val sport = async { runCatching { HealthExtraSrc.readSport(c) }.getOrNull() }
+            val fit = async { runCatching { FitSrc.read(c) }.getOrNull() }
+            val f = fit.await() ?: old.fit
+            val (h, x) = FitSrc.overlay(health.await() ?: old.health, extra.await() ?: old.healthX, f)
+            val s = old.copy(health = h, healthX = x, sport = sport.await() ?: old.sport, fit = f)
+            Store.save(c, s)
+            Store.setLocalAt(c, System.currentTimeMillis())
+            HqWidget.updateAll(c)
+            s
+        }
+    }
+
     /** Pulls every source in parallel. A failed source keeps its last good value (if retaining is on) and is logged. */
     suspend fun refresh(c: Context, manual: Boolean = false): Snapshot = withContext(Dispatchers.IO) {
         val cfg = Cfg.get(c)
@@ -508,6 +563,7 @@ object Repo {
                 errors = errors.toList(),
             )
             Store.save(c, s)
+            Store.setLocalAt(c, System.currentTimeMillis())
             HqWidget.updateAll(c)
             if (!manual) Notifier.afterRefresh(c, s, failed, 6)
             s

@@ -21,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -139,6 +140,8 @@ class MainActivity : ComponentActivity() {
     private var diag by mutableStateOf<Map<String, SourceState>>(emptyMap())
     private var errlog by mutableStateOf<List<ErrEntry>>(emptyList())
     private var loading by mutableStateOf(false)
+    /** A quiet on-device read (Health Connect, watch, Woozy Fit) is running: shown as a small pulsing dot in the header. */
+    private var syncing by mutableStateOf(false)
     private var toastTick by mutableStateOf(0L)
     private var settingsOpen by mutableStateOf(false)
     private var settingsStart by mutableStateOf("")
@@ -181,6 +184,12 @@ class MainActivity : ComponentActivity() {
         }
         if (!Store.asked(this)) { if (Store.token(this).isEmpty()) openSettings("connections") else askPermissions() }
         else if (cfg.refreshOnLaunch) refresh(false)
+        // While HQ is on screen, re-read the on-device sources every two minutes (Notion stays on its own schedule).
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) { kotlinx.coroutines.delay(120_000); refreshLocal() }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -190,7 +199,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (cfg.refreshOnLaunch && Store.token(this).isNotEmpty() && System.currentTimeMillis() - snap.updated > 5 * 60_000) refresh(false)
+        val now = System.currentTimeMillis()
+        if (cfg.refreshOnLaunch && Store.token(this).isNotEmpty() && now - snap.updated > 5 * 60_000) refresh(false)
+        // Health Connect is on the phone and cheap to read: anything older than a minute is re-read straight away.
+        else if (now - Store.localAt(this) > 60_000) refreshLocal()
+    }
+
+    private var localJob: kotlinx.coroutines.Job? = null
+    private fun refreshLocal() {
+        if (loading || localJob?.isActive == true) return
+        localJob = lifecycleScope.launch {
+            syncing = true
+            try { snap = Repo.refreshLocal(this@MainActivity) } catch (_: Exception) { }
+            syncing = false
+        }
     }
 
     private fun openSettings(section: String = "") { settingsStart = section; settingsOpen = true }
@@ -430,7 +452,10 @@ class MainActivity : ComponentActivity() {
                     // Three lines at most, same as Woozy Fit: date, greeting, weather.
                     // Freshness: when the data is over 30 minutes old, say when Notion and Health last refreshed.
                     val age = if (s.updated > 0) (System.currentTimeMillis() - s.updated) / 60_000 else 0
-                    T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)) + (if (s.updated > 0 && age > 30) " \u00B7 updated " + Fmt.clock(s.updated) else ""), 13.sp, if (age > 120) th.warn else th.muted, weight = FontWeight.Medium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)) + (if (s.updated > 0 && age > 30) " \u00B7 updated " + Fmt.clock(s.updated) else ""), 13.sp, if (age > 120) th.warn else th.muted, weight = FontWeight.Medium)
+                        SyncDot(loading || syncing)
+                    }
                     T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 28.sp else 24.sp, th.fg, weight = FontWeight.Bold, maxLines = 2, tracking = if (th.flat) (-0.6).sp else TextUnit.Unspecified)
                     s.weather?.let { w ->
                         T("${Fmt.temp(w.temp)} \u00B7 ${WeatherSrc.label(w.code)} \u00B7 H ${Fmt.temp(w.hi)} L ${Fmt.temp(w.lo)} \u00B7 Rain ${w.rain}%", 12.sp, th.muted,
@@ -446,6 +471,17 @@ class MainActivity : ComponentActivity() {
                 AvatarButton()
             }
         }
+    }
+
+    /** Subtle live-sync cue: a 6dp dot that fades in and pulses beside the date while a refresh runs, then fades away. */
+    @Composable
+    private fun SyncDot(on: Boolean) {
+        val th = LocalTh.current
+        val vis by androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, androidx.compose.animation.core.tween(250), label = "syncVis")
+        if (vis == 0f) return
+        val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "sync")
+        val a by t.animateFloat(1f, 0.3f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "pulse")
+        Box(Modifier.padding(start = 8.dp).size(6.dp).graphicsLayer { alpha = vis * a }.clip(CircleShape).background(th.tab[2]))
     }
 
     /** Tap to open Settings, same as Woozy Fit. The picture is the Notion DASHBOARD page icon, refreshed with everything else. Shows an M on a plain circle until there is one. */

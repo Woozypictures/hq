@@ -76,6 +76,9 @@ object Store {
     private fun prefs(c: Context) = c.getSharedPreferences("hq", Context.MODE_PRIVATE)
 
     fun token(c: Context): String = prefs(c).getString("token", "") ?: ""
+    /** When on-device sources (Health Connect, watch, Woozy Fit) were last read, full or local refresh. */
+    fun localAt(c: Context): Long = prefs(c).getLong("local_at", 0L)
+    fun setLocalAt(c: Context, t: Long) = prefs(c).edit().putLong("local_at", t).apply()
     fun setToken(c: Context, t: String) = prefs(c).edit().putString("token", t.trim()).apply()
     fun dob(c: Context): String = prefs(c).getString("dob", "") ?: ""
     fun setDob(c: Context, d: String) = prefs(c).edit().putString("dob", d.trim()).apply()
