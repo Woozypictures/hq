@@ -99,6 +99,14 @@ internal fun snapType(size: TextUnit): TextUnit {
     return s.sp
 }
 
+
+/** Three weights per screen, Apple-style: Regular, Semibold, Bold. Medium and lighter fold into Regular. */
+internal fun snapWeight(w: FontWeight): FontWeight = when {
+    w.weight >= 650 -> FontWeight.Bold
+    w.weight >= 550 -> FontWeight.SemiBold
+    else -> FontWeight.Normal
+}
+
 @Composable
 internal fun T(
     text: String, size: TextUnit, color: Color, modifier: Modifier = Modifier,
@@ -109,7 +117,7 @@ internal fun T(
     Text(
         if (caps && th.glass) text.uppercase() else text, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
         style = TextStyle(
-            fontFamily = GSans, fontSize = snapType(size), color = color, fontWeight = weight, letterSpacing = tracking,
+            fontFamily = GSans, fontSize = snapType(size), color = color, fontWeight = snapWeight(weight), letterSpacing = tracking,
             fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
             textAlign = if (center) TextAlign.Center else TextAlign.Start,
             fontFeatureSettings = "tnum", // tabular numerals so figures and times line up

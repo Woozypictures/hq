@@ -46,6 +46,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.Color
@@ -168,7 +172,15 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
     return this
         .onGloballyPositioned { pos = it.positionInRoot() }
         .shadow(24.dp, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.45f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.4f))
-        .shadow(6.dp, shape, ambientColor = style.shadow.copy(alpha = style.shadow.alpha * 0.55f), spotColor = style.shadow.copy(alpha = style.shadow.alpha * 0.6f))
+        // Key shadow dropped 3dp below, so the glass has a light direction (from above).
+        .drawBehind {
+            val path = androidx.compose.ui.graphics.Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawBehind)) }
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.TRANSPARENT
+                setShadowLayer(7.dp.toPx(), 0f, 3.dp.toPx(), style.shadow.copy(alpha = style.shadow.alpha * 0.7f).toArgb())
+            }
+            drawContext.canvas.nativeCanvas.drawPath(path.asAndroidPath(), paint)
+        }
         .clip(shape)
         .drawBehind {
             if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, (if (dark) blur + 4f else blur).dp.toPx(), saturate = true)

@@ -1082,7 +1082,7 @@ class MainActivity : ComponentActivity() {
                         T(est.parts.joinToString(" \u00B7 ") { "${it.first} ${it.second}" }, 12.sp, th.muted)
                     }
                 }
-                Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)) { T("HQ's own estimate from HRV, resting heart rate and sleep. Not Samsung's score.", 11.sp, th.muted) }
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)) { T("HQ's own estimate from HRV, resting heart rate and sleep. Not Samsung's score." + (s.sport?.at?.takeIf { it > 0 }?.let { " Watch data read " + Fmt.clock(it) + "." } ?: ""), 11.sp, th.muted) }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tile("HRV", d?.hrvLatest?.let { "${it.toInt()} ms" } ?: "-", d?.hrvAvg7?.let { "7 day avg ${it.toInt()}" }, tc, Modifier.weight(1f))
