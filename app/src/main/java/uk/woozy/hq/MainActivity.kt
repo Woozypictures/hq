@@ -1141,9 +1141,14 @@ class MainActivity : ComponentActivity() {
         val h = s.feed?.optJSONObject("health")
         val plan = s.fit?.workoutToday?.takeIf { it.isNotBlank() && !it.equals("null", true) } ?: h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" }
         val hint = h?.takeIf { !it.isNull("hint") }?.optString("hint")?.takeIf { it.isNotBlank() && !it.equals("null", true) && !it.contains("strava", true) && !(s.health != null && it.contains("Health Connect", true)) }
-        if (plan == null && hint == null) return
+        // Fit read today and nothing is planned: a rest day, with a different line each time Home opens.
+        val rest = plan == null && s.fit?.date == LocalDate.now(Cfg.zone).toString()
+        val restLine = remember { listOf("Relax and recharge \uD83D\uDEC1", "Hoo-ray, it's your rest day \uD83C\uDF34", "Invest in rest \u2615", "Today's checklist: chill \u2705",
+            "Growth happens while you rest \uD83C\uDF31", "Put your feet up \uD83D\uDECB\uFE0F", "Rest is part of the plan \uD83D\uDE34", "Recover well, come back stronger \uD83D\uDD0B").random() }
+        if (plan == null && !rest && hint == null) return
         Section("Training plan", "Woozy Fit", { openFit() }) {
             Panel {
+                if (rest) Line(restLine, s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }) { openFit() }
                 if (plan != null) Line("Today: $plan", s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }) { openFit() }
                 if (hint != null) Line(hint)
             }
