@@ -210,17 +210,26 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlurredBackdrop
     translate(-m, -m) { drawLayer(blurLayer) }
 }
 
-/** A whole-screen frost (for behind the + menu): the page blurs and lightens instead of just going dark. */
+/**
+ * The wash that sits behind the + menu. Pair it with [frostedContent] on the screen content, which does the actual
+ * blur (blurring the content itself is reliable at full-screen size, unlike copying it into a layer).
+ */
 @Composable
 fun Modifier.frostScreen(backdrop: GlassBackdrop, style: GlassStyle): Modifier {
-    val blurLayer = rememberGraphicsLayer()
-    var pos by remember { mutableStateOf(Offset.Zero) }
-    val canBlur = Build.VERSION.SDK_INT >= 31
     val dark = style.tint.red < 0.5f
-    return this.onGloballyPositioned { pos = it.positionInRoot() }.drawBehind {
-        if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, 18.dp.toPx(), saturate = true)
-        drawRect(if (dark) Color.Black.copy(alpha = if (canBlur) 0.35f else 0.6f) else Color.White.copy(alpha = if (canBlur) 0.35f else 0.7f))
+    val canBlur = Build.VERSION.SDK_INT >= 31
+    return this.drawBehind {
+        drawRect(if (dark) Color.Black.copy(alpha = if (canBlur) 0.30f else 0.6f) else Color.White.copy(alpha = if (canBlur) 0.30f else 0.7f))
     }
+}
+
+/** Blurs the whole screen content while [on] (eases in and out), for the frost behind menus. */
+@Composable
+fun Modifier.frostedContent(on: Boolean): Modifier {
+    if (Build.VERSION.SDK_INT < 31) return this
+    val r by androidx.compose.animation.core.animateFloatAsState(if (on) 22f else 0f, tween(200), label = "frost")
+    val px = with(LocalDensity.current) { r.dp.toPx() }
+    return this.graphicsLayer { renderEffect = if (px > 0.5f) BlurEffect(px, px, TileMode.Decal) else null }
 }
 
 /**
