@@ -273,25 +273,6 @@ object NotionSrc {
     }
 }
 
-object WeatherSrc {
-    fun read(): Weather {
-        val o = JSONObject(http("https://api.open-meteo.com/v1/forecast?latitude=51.51&longitude=-0.59" +
-            "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
-            "&timezone=Europe%2FLondon&forecast_days=1"))
-        val cur = o.getJSONObject("current")
-        val d = o.getJSONObject("daily")
-        return Weather(cur.getDouble("temperature_2m"), cur.getInt("weather_code"),
-            d.getJSONArray("temperature_2m_max").getDouble(0), d.getJSONArray("temperature_2m_min").getDouble(0),
-            d.getJSONArray("precipitation_probability_max").optInt(0))
-    }
-
-    fun label(code: Int) = when (code) {
-        0 -> "Clear"; 1 -> "Mostly clear"; 2 -> "Partly cloudy"; 3 -> "Cloudy"
-        45, 48 -> "Fog"; in 51..57 -> "Drizzle"; in 61..67 -> "Rain"; in 71..77 -> "Snow"
-        in 80..82 -> "Showers"; in 85..86 -> "Snow showers"; in 95..99 -> "Thunder"; else -> "-"
-    }
-}
-
 object CalendarSrc {
     fun granted(c: Context) = c.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
 
@@ -530,7 +511,6 @@ object Repo {
             val cds = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.countdowns(token) } }
             val feed = async { runCatching { if (token.isEmpty()) error(needsToken) else NotionSrc.feed(token) } }
             val avatar = async { runCatching { if (token.isNotEmpty()) Avatar.sync(c, NotionSrc.pageIcon(token)); Unit } }
-            val weather = async { runCatching { WeatherSrc.read() } }
             val events = async { runCatching { CalendarSrc.read(c) } }
             val health = async { runCatching { HealthSrc.read(c) } }
             val extra = async { runCatching { HealthExtraSrc.readExtra(c) } }
@@ -553,7 +533,6 @@ object Repo {
                 tasks = track("Notion tasks", tasks.await(), old.tasks),
                 countdowns = track("Notion countdowns", cds.await(), old.countdowns),
                 feed = track("HQ Feed", feed.await(), old.feed),
-                weather = track("Weather", weather.await(), old.weather),
                 events = track("Calendar", events.await(), old.events),
                 health = hOut,
                 healthX = xOut,

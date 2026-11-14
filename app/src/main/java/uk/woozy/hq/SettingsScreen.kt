@@ -278,7 +278,7 @@ fun SettingsScreen(
             }
 
             Section("dashboard", "Home cards") {
-                val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr", "weather") }
+                val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr") }
                 val cur by rememberUpdatedState(s)
                 val change by rememberUpdatedState(onChange)
                 var dragKey by remember { mutableStateOf<String?>(null) }

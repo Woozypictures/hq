@@ -50,7 +50,7 @@ object Demo {
         Store.save(c, Snapshot(
             updated = now, tasks = tasks, countdowns = cds, events = events,
             health = Health(7420, 452, 58, 410.0, 2480.0, 1210.0, 86.2),
-            weather = Weather(9.0, 3, 11.0, 5.0, 20), feed = feed,
+            feed = feed,
             healthX = HealthExtra(72.0, 14.0, 140.0, 38.0, now - 600_000, now - 9 * 3_600_000L, now - 3_600_000, now - 86_400_000L, now - 1_200_000, 2),
             history = history,
         ))

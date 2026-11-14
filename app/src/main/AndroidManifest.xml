@@ -28,7 +28,6 @@
         <package android:name="com.instagram.android" />
         <package android:name="com.sec.android.app.shealth" />
         <package android:name="com.sec.android.daemonapp" />
-        <package android:name="com.google.android.apps.weather" />
         <package android:name="com.twitter.android" />
         <package android:name="com.cronometer.android" />
         <package android:name="uk.woozy.fit" />

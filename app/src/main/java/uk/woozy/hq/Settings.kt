@@ -18,7 +18,7 @@ val HOME_NAMES = mapOf(
     "brief" to "Morning brief and quote", "headsup" to "Heads up", "since" to "Since yesterday", "waiting" to "Waiting on others", "hints" to "Connect hints",
     "tasks" to "Priority tasks", "vitals" to "Steps, sleep and heart rate (small cards)", "calories" to "Calories and macros",
     "steps" to "Steps (wide card)", "sleep" to "Sleep (wide card)", "rhr" to "Resting heart rate (wide card)",
-    "events" to "Upcoming events", "countdowns" to "Countdowns", "feed" to "HQ Feed", "weather" to "Weather",
+    "events" to "Upcoming events", "countdowns" to "Countdowns", "feed" to "HQ Feed",
 )
 val HEALTH_CARDS = listOf("plan", "sport", "recovery", "steps", "sleep", "rhr", "weight", "nutrition", "fitness", "activity", "weekly")
 val HEALTH_NAMES = mapOf(

@@ -332,14 +332,6 @@ class MainActivity : ComponentActivity() {
         packageManager.getLaunchIntentForPackage("uk.woozy.fit")?.let { try { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {} }
     }
 
-    private fun openWeather() {
-        fun go(i: Intent): Boolean = try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false }
-        for (pkg in listOf("com.sec.android.daemonapp", "com.google.android.apps.weather")) {
-            packageManager.getLaunchIntentForPackage(pkg)?.let { if (go(it)) return }
-        }
-        go(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=weather+Slough")))
-    }
-
     /** Samsung Health tracker pages (steps, sleep, heart rate, weight). Falls back to opening the app. */
     private fun openShealth(kind: String) {
         val pkg = "com.sec.android.app.shealth"
@@ -449,7 +441,7 @@ class MainActivity : ComponentActivity() {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 if (tab == 0) {
-                    // Three lines at most, same as Woozy Fit: date, greeting, weather.
+                    // Three lines at most, same as Woozy Fit: date, greeting.
                     // Freshness: when the data is over 30 minutes old, say when Notion and Health last refreshed.
                     val age = if (s.updated > 0) (System.currentTimeMillis() - s.updated) / 60_000 else 0
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -457,10 +449,6 @@ class MainActivity : ComponentActivity() {
                         SyncDot(loading || syncing)
                     }
                     T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 28.sp else 24.sp, th.fg, weight = FontWeight.Bold, maxLines = 2, tracking = if (th.flat) (-0.6).sp else TextUnit.Unspecified)
-                    s.weather?.let { w ->
-                        T("${Fmt.temp(w.temp)} \u00B7 ${WeatherSrc.label(w.code)} \u00B7 H ${Fmt.temp(w.hi)} L ${Fmt.temp(w.lo)} \u00B7 Rain ${w.rain}%", 12.sp, th.muted,
-                            Modifier.clickable { openWeather() }.padding(top = 2.dp), maxLines = 1)
-                    }
                 } else {
                     T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
                     T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
@@ -984,24 +972,6 @@ class MainActivity : ComponentActivity() {
         val d = LocalDateTime.parse(iso)
         (if (d.toLocalDate() == LocalDate.now(Cfg.zone)) "" else Fmt.dayMonth(d.toLocalDate()) + " ") + Fmt.time(d)
     } catch (_: Exception) { iso }
-
-    @Composable
-    private fun WeatherCard(s: Snapshot) {
-        val th = LocalTh.current
-        val w = s.weather
-        Section("Weather · Slough") {
-            Column(Modifier.fillMaxWidth().card(18.dp).clickable { openWeather() }.padding(vertical = 4.dp)) {
-                if (w == null) Muted("Weather hasn't loaded yet")
-                else Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        T(Fmt.temp(w.temp), 30.sp, th.fg, weight = FontWeight.Bold)
-                        T("  " + WeatherSrc.label(w.code), 15.sp, th.muted, modifier = Modifier.padding(bottom = 4.dp))
-                    }
-                    T("High ${Fmt.temp(w.hi)} · Low ${Fmt.temp(w.lo)} · Rain ${w.rain}%", 12.sp, th.muted, caps = true)
-                }
-            }
-        }
-    }
 
     // ---------- feed extras (additive keys from the morning task; each card hides itself when its key is missing) ----------
 

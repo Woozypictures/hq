@@ -54,7 +54,6 @@ data class SportData(val at: Long, val sessions: List<Session>, val hrvLatest: D
         }
     }
 }
-data class Weather(val temp: Double, val code: Int, val hi: Double, val lo: Double, val rain: Int)
 
 /** Everything the app and widget show. Any section can be null if its source failed and has never worked. */
 data class Snapshot(
@@ -63,7 +62,6 @@ data class Snapshot(
     val countdowns: List<Countdown>? = null,
     val events: List<Event>? = null,
     val health: Health? = null,
-    val weather: Weather? = null,
     val feed: JSONObject? = null,
     val healthX: HealthExtra? = null,
     val history: HealthHistory? = null,
@@ -127,8 +125,6 @@ object Store {
             put("totalKcal", h.totalKcal ?: JSONObject.NULL); put("eatenKcal", h.eatenKcal ?: JSONObject.NULL)
             put("weightKg", h.weightKg ?: JSONObject.NULL)
         }) }
-        s.weather?.let { w -> put("weather", JSONObject().put("temp", w.temp).put("code", w.code)
-            .put("hi", w.hi).put("lo", w.lo).put("rain", w.rain)) }
         s.feed?.let { put("feed", it) }
         s.healthX?.let { put("healthX", it.toJson()) }
         s.history?.let { put("history", it.toJson()) }
@@ -153,8 +149,6 @@ object Store {
         health = o.optJSONObject("health")?.let { Health(it.lOrNull("steps"), it.lOrNull("sleepMin"),
             it.lOrNull("restingHr"), it.dOrNull("activeKcal"), it.dOrNull("totalKcal"),
             it.dOrNull("eatenKcal"), it.dOrNull("weightKg")) },
-        weather = o.optJSONObject("weather")?.let { Weather(it.optDouble("temp"), it.optInt("code"),
-            it.optDouble("hi"), it.optDouble("lo"), it.optInt("rain")) },
         feed = o.optJSONObject("feed"),
         healthX = o.optJSONObject("healthX")?.let { HealthExtra.from(it) },
         history = o.optJSONObject("history")?.let { HealthHistory.from(it) },
