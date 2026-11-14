@@ -784,7 +784,13 @@ class MainActivity : ComponentActivity() {
                 "pipeline" -> PipelineCard(s, tc)
                 "youtube" -> Section("YouTube" + (yt?.optString("channel")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
                     if (yt == null) Panel { Muted("Stats arrive with the morning refresh") }
-                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    else if (th.flat) {
+                        val go = { openApp("com.google.android.youtube", "https://www.youtube.com/$ytHandle") }
+                        PlatformHero(
+                            "Subscribers", nf.format(yt.optLong("subs")), if (yt.optLong("subs30") != 0L) "${yt.optLong("subs30")} in 30 days" else null,
+                            listOf("Views" to nf.format(yt.optLong("views")), "Videos" to nf.format(yt.optLong("videos"))), go,
+                        )
+                    } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         val go = { openApp("com.google.android.youtube", "https://www.youtube.com/$ytHandle") }
                         Tile("Subscribers", nf.format(yt.optLong("subs")), if (yt.optLong("subs30") != 0L) "${yt.optLong("subs30")} in 30d" else null, tc, Modifier.weight(1f), go)
                         Tile("Views", nf.format(yt.optLong("views")), "+${nf.format(yt.optLong("views30"))} in 30d", tc, Modifier.weight(1f), go)
@@ -793,7 +799,13 @@ class MainActivity : ComponentActivity() {
                 }
                 "instagram" -> Section("Instagram" + (ig?.optString("handle")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
                     if (ig == null) Panel { Muted("Instagram stats arrive with the morning refresh") }
-                    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    else if (th.flat) {
+                        val go = { openApp("com.instagram.android", "https://www.instagram.com/$igHandle") }
+                        PlatformHero(
+                            "Followers", nf.format(ig.optLong("followers")), null,
+                            listOf("Reach, 30 days" to (if (ig.has("reach30")) nf.format(ig.optLong("reach30")) else "-"), "Posts" to (if (ig.has("posts")) nf.format(ig.optLong("posts")) else "-")), go,
+                        )
+                    } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         val go = { openApp("com.instagram.android", "https://www.instagram.com/$igHandle") }
                         Tile("Followers", nf.format(ig.optLong("followers")), null, tc, Modifier.weight(1f), go)
                         Tile("Reach", if (ig.has("reach30")) nf.format(ig.optLong("reach30")) else "-", "30 days", tc, Modifier.weight(1f), go)
@@ -801,6 +813,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 else -> Section("Content and music") { TasksPanel(s, tasksIn(s, "Content", "Music"), "No content tasks", "area") }
+            }
+        }
+    }
+
+    /** Create page: one platform as a display number with its other stats underneath (Woozy look). */
+    @Composable
+    private fun PlatformHero(label: String, big: String, bigNote: String?, others: List<Pair<String, String>>, onClick: () -> Unit) {
+        val th = LocalTh.current
+        Column(Modifier.fillMaxWidth().card(22.dp).clickable(onClick = onClick).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column {
+                T(label, 14.sp, th.muted, weight = FontWeight.Medium)
+                T(big, 56.sp, th.fg, weight = FontWeight.Bold, tracking = (-2).sp)
+                if (bigNote != null) T(bigNote, 13.sp, th.muted)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                others.forEach { (k, v) -> Column(Modifier.weight(1f)) { T(k, 12.sp, th.muted, weight = FontWeight.Medium); T(v, 20.sp, th.fg, weight = FontWeight.SemiBold) } }
             }
         }
     }
