@@ -405,7 +405,7 @@ fun SettingsScreen(
                 SOCIALS.forEach { url ->
                     T(url, 14.sp, th.tab[0], Modifier.fillMaxWidth().clickable { actions.openUrl(url) }.padding(vertical = 6.dp), weight = FontWeight.Medium)
                 }
-                T("Source at github.com/Woozypictures/hq", 13.sp, th.muted)
+                T("Source at github.com/Woozypictures/hq", 13.sp, th.muted, Modifier.fillMaxWidth().clickable { actions.openRepo() }.padding(vertical = 4.dp))
                 T("Your data stays with you.", 13.sp, th.muted)
             }
         }

@@ -171,7 +171,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlurredBackdrop
 @Composable
 fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifier) {
     val sb = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val fade = 28.dp
+    val fade = 20.dp
     val h = sb + fade
     val solid = (sb / h).coerceIn(0f, 1f)
     val canBlur = Build.VERSION.SDK_INT >= 31
@@ -190,7 +190,7 @@ fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifi
             }
             .drawBehind {
                 if (canBlur && size.width > 0f && size.height > 0f) drawBlurredBackdrop(blurLayer, backdrop, pos, 20.dp.toPx())
-                drawRect(bg.copy(alpha = if (canBlur) 0.72f else 0.96f))
+                drawRect(bg.copy(alpha = if (canBlur) 0.92f else 0.97f))
             },
     )
 }

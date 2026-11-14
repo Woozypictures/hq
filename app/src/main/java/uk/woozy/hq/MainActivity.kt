@@ -424,14 +424,17 @@ class MainActivity : ComponentActivity() {
         val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
-                T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
-                T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
                 if (tab == 0) {
-                    T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
+                    // Three lines at most, same as Woozy Fit: date, greeting, weather.
+                    T(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", UK)), 13.sp, th.muted, weight = FontWeight.Medium)
+                    T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 28.sp else 24.sp, th.fg, weight = FontWeight.Bold, maxLines = 2, tracking = if (th.flat) (-0.6).sp else TextUnit.Unspecified)
                     s.weather?.let { w ->
-                        T("${Fmt.temp(w.temp)} ${WeatherSrc.label(w.code)} \u00B7 High ${Fmt.temp(w.hi)} \u00B7 Low ${Fmt.temp(w.lo)} \u00B7 Rain ${w.rain}%", if (th.flat) 14.sp else 13.sp, th.muted,
-                            Modifier.clickable { openWeather() }.padding(top = 2.dp))
+                        T("${Fmt.temp(w.temp)} \u00B7 ${WeatherSrc.label(w.code)} \u00B7 H ${Fmt.temp(w.hi)} L ${Fmt.temp(w.lo)} \u00B7 Rain ${w.rain}%", 12.sp, th.muted,
+                            Modifier.clickable { openWeather() }.padding(top = 2.dp), maxLines = 1)
                     }
+                } else {
+                    T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
+                    T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
