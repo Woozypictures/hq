@@ -174,11 +174,21 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = scheme) {
                 CompositionLocalProvider(LocalTh provides th, androidx.compose.foundation.LocalIndication provides NoIndication) {
                     BackHandler(settingsOpen) { settingsOpen = false }
+                    // Cold start: the same short name screen as Woozy Fit, then it fades into the app.
+                    var splash by remember { mutableStateOf(savedInstanceState == null) }
+                    LaunchedEffect(Unit) { if (splash) { kotlinx.coroutines.delay(450); splash = false } }
+                    Box(Modifier.fillMaxSize()) {
                     if (settingsOpen) SettingsScreen(
                         s = cfg, onChange = ::update, tokenSaved = tokenSaved, dob = Store.dob(this),
                         snap = snap, diag = diag, errlog = errlog, start = settingsStart,
                         versionText = versionText(), actions = actions(), onBack = { settingsOpen = false },
                     ) else Screen()
+                    androidx.compose.animation.AnimatedVisibility(splash, exit = androidx.compose.animation.fadeOut(tween(220))) {
+                        Box(Modifier.fillMaxSize().background(th.bg), contentAlignment = Alignment.Center) {
+                            T("Woozy HQ", 20.sp, th.muted, weight = FontWeight.SemiBold)
+                        }
+                    }
+                    }
                 }
             }
         }
