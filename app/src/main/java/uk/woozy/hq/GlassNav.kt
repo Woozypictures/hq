@@ -574,3 +574,47 @@ object NoIndication : androidx.compose.foundation.IndicationNodeFactory {
     override fun equals(other: Any?) = other === this
     override fun hashCode() = -1
 }
+
+/** Woozy design tokens (Prompt 3). One source of truth shared by Woozy HQ and Woozy Fit. */
+object WoozyTokens {
+    object Light {
+        val base = Color(0xFFF4F1EA); val surface = Color(0xFFFFFFFF); val elevated = Color(0xFFFFFFFF)
+        val inset = Color(0xFFECE8DF); val hairline = Color(0x1A141414); val ink = Color(0xFF141414)
+        val inkMuted = Color(0xFF6B675F); val accent = Color(0xFF2D5A34); val onAccent = Color(0xFFFFFFFF)
+        val ok = Color(0xFF2D6A3A); val warn = Color(0xFFB3401A)
+    }
+    object Dark {
+        val base = Color(0xFF0E0F0E); val surface = Color(0xFF181A18); val elevated = Color(0xFF222522)
+        val inset = Color(0xFF232623); val hairline = Color(0x1FFFFFFF); val ink = Color(0xFFF2F1EC)
+        val inkMuted = Color(0xFF9A9A92); val accent = Color(0xFFC8F25A); val onAccent = Color(0xFF10140A)
+        val ok = Color(0xFF8FD18F); val warn = Color(0xFFFF8A7A)
+    }
+    object Glass {
+        val blurLight = 22.dp; val blurDark = 26.dp; const val saturate = 1.35f
+        val tintLight = Color(0xFFEEF0F3).copy(alpha = 0.52f); val tintDark = Color(0xFF1C1D1F).copy(alpha = 0.52f)
+        val fallbackLight = Color.White.copy(alpha = 0.94f); val fallbackDark = Color(0xFF202124).copy(alpha = 0.92f)
+        const val grainLight = 0.03f; const val grainDark = 0.04f
+        val ambientBlur = 24.dp; val keyBlur = 7.dp; val keyOffset = 3.dp
+    }
+    object Radius {
+        val card = 22.dp; val sheet = 28.dp; val tile = 14.dp; val thumb = 12.dp; val chip = 8.dp
+        val pill = 32.dp; val capsule = 26.dp
+    }
+    object Space {
+        val s1 = 4.dp; val s2 = 8.dp; val s3 = 12.dp; val s4 = 16.dp; val s5 = 20.dp; val s6 = 24.dp
+        val s8 = 32.dp; val s10 = 40.dp; val gutter = 16.dp; val cardPad = 16.dp; val heroPad = 20.dp
+        val navPill = 64.dp; val navLift = 12.dp
+    }
+    object Type {
+        const val display = 48; const val largeTitle = 34; const val title1 = 28; const val title2 = 24
+        const val title3 = 20; const val headline = 17; const val body = 15; const val caption = 13; const val micro = 11
+    }
+    object Motion {
+        val press = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.55f, stiffness = 500f)
+        val pill = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.8f, stiffness = 420f)
+        val pop = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.72f, stiffness = 520f)
+        val sheet = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.9f, stiffness = 380f)
+        val fill = androidx.compose.animation.core.spring<Float>(dampingRatio = 0.85f, stiffness = 120f)
+        const val countMs = 700; const val fadeInMs = 150; const val fadeOutMs = 90
+    }
+}
