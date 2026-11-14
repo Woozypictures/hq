@@ -147,7 +147,7 @@ object NotionSrc {
                 "heading_1", "heading_2", "heading_3" -> joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block("h", it, "", false) }
                 "to_do" -> joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block("todo", it, "", o?.optBoolean("checked") == true) }
                 "paragraph", "callout", "quote", "bulleted_list_item", "numbered_list_item" ->
-                    joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block(if (t.endsWith("list_item")) "li" else "p", it, "", false) }
+                    joinText(o?.optJSONArray("rich_text")).takeIf { it.isNotBlank() }?.let { out += Block(if (t.endsWith("list_item")) "li" else if (t == "quote" || t == "callout") "q" else "p", it, "", false) }
                 "link_to_page" -> {
                     val pid = o?.optString("page_id") ?: ""
                     if (pid.isNotEmpty()) out += Block("page", "Linked page", Links.n(pid), false)

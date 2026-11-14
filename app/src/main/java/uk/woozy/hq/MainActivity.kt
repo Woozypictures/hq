@@ -375,7 +375,7 @@ class MainActivity : ComponentActivity() {
         Column(Modifier.fillMaxSize().glassSource(backdrop)) {
             val pages = when (tab) { 1 -> Links.LIFE_PAGES; 2 -> Links.HEALTH_PAGES; 3 -> Links.CAREER_PAGES; 4 -> Links.CREATE_PAGES; else -> emptyList() }
             @OptIn(ExperimentalMaterial3Api::class)
-            PullToRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
+            SmoothRefreshBox(isRefreshing = loading, onRefresh = { refresh(true) }, container = th.panel, accent = th.tab[0], modifier = Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(scroll)
                     // Cards may go wide on a tablet (two columns); Notion sub-pages are text, so they stay narrower.
@@ -422,14 +422,16 @@ class MainActivity : ComponentActivity() {
         val now = LocalDate.now(Cfg.zone)
         val hour = java.time.LocalTime.now(Cfg.zone).hour
         val greet = if (hour < 12) "Good morning" else if (hour < 18) "Good afternoon" else "Good evening"
-        val lock = if (tab == 0) (s.tasks?.count { it.lane == "Do now" } ?: 0) else 0
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 T(now.format(DateTimeFormatter.ofPattern("EEEE", UK)), 13.sp, th.muted, weight = FontWeight.Medium, caps = true)
                 T(now.format(DateTimeFormatter.ofPattern("d MMMM", UK)), if (th.flat) 40.sp else 32.sp, th.fg, weight = FontWeight.Bold, caps = true, tracking = if (th.flat) (-1).sp else TextUnit.Unspecified)
                 if (tab == 0) {
-                    T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}!", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
-                    if (lock > 0) T(if (lock == 1) "1 thing to lock in today" else "$lock things to lock in today", if (th.flat) 15.sp else 13.sp, th.muted)
+                    T("$greet, ${Store.name(this@MainActivity).trim().substringBefore(' ')}.", if (th.flat) 24.sp else 20.sp, th.fg, weight = FontWeight.Bold, tracking = if (th.flat) (-0.5).sp else TextUnit.Unspecified)
+                    s.weather?.let { w ->
+                        T("${Fmt.temp(w.temp)} ${WeatherSrc.label(w.code)} \u00B7 High ${Fmt.temp(w.hi)} \u00B7 Low ${Fmt.temp(w.lo)} \u00B7 Rain ${w.rain}%", if (th.flat) 14.sp else 13.sp, th.muted,
+                            Modifier.clickable { openWeather() }.padding(top = 2.dp))
+                    }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -490,6 +492,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Draggable(tab: String, def: List<String>, key: String, visible: List<String>, content: @Composable () -> Unit) {
         val editing = homeEditing
+        val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
         val dragging = draggingKey == key
         val gap = with(LocalDensity.current) { 20.dp.toPx() }
         val wiggle = rememberInfiniteTransition(label = "wiggle")
@@ -502,7 +505,7 @@ class MainActivity : ComponentActivity() {
                     if (dragging) { translationY = dragOffset; scaleX = 1.03f; scaleY = 1.03f; shadowElevation = 24f }
                 }
                 .zIndex(if (dragging) 1f else 0f)
-                .then(if (!editing) Modifier.onLongPress { homeEditing = true } else Modifier),
+                .then(if (!editing) Modifier.onLongPress { homeEditing = true; haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) } else Modifier),
         ) {
             content()
             if (editing) Box(
@@ -624,6 +627,10 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(id) { loadPage(id) }
         if (name == "Apartment") FlatCard(tc)
         val areas = SUB_AREAS[name]
+        val quote = pageBlocks[id]?.firstOrNull { it.kind == "q" }
+        if (quote != null) Box(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+            T("\u201C" + quote.text.trim().trim('"', '\u201C', '\u201D') + "\u201D", if (th.flat) 20.sp else 18.sp, th.fg, weight = FontWeight.Medium, italic = true)
+        }
         if (areas != null) Section("Tasks") { TasksPanel(s, tasksIn(s, *areas.toTypedArray()), "No tasks here", "lane") }
         val blocks = pageBlocks[id]
         val err = pageErr[id]
@@ -639,7 +646,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            val text = blocks.filter { it.kind != "page" }
+            val text = blocks.filter { it.kind != "page" && it !== quote }
             if (text.isNotEmpty()) Panel {
                 text.take(40).forEach { b ->
                     when (b.kind) {
@@ -648,6 +655,7 @@ class MainActivity : ComponentActivity() {
                             T(if (b.checked) "[x]" else "[ ]", 13.sp, th.muted, Modifier.width(30.dp))
                             T(b.text, 14.sp, if (b.checked) th.muted else th.fg)
                         }
+                        "q" -> Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { T("\u201C" + b.text.trim().trim('"', '\u201C', '\u201D') + "\u201D", 14.sp, th.fg, italic = true) }
                         else -> Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { T((if (b.kind == "li") "- " else "") + b.text, 14.sp, th.fg) }
                     }
                 }
@@ -707,7 +715,6 @@ class MainActivity : ComponentActivity() {
                 "since" -> SinceCard(s)
                 "waiting" -> WaitingCard(s)
                 "hints" -> HintsCard(s)
-                "weather" -> WeatherCard(s)
             }
         }
     }
@@ -795,7 +802,7 @@ class MainActivity : ComponentActivity() {
             when (k) {
                 "stats" -> StatsCard(s, tc)
                 "pipeline" -> PipelineCard(s, tc)
-                "youtube" -> Section("YouTube" + (yt?.optString("channel")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
+                "youtube" -> Section("YouTube") {
                     if (yt == null) Panel { Muted("Stats arrive with the morning refresh") }
                     else if (th.flat) {
                         val go = { openApp("com.google.android.youtube", "https://www.youtube.com/$ytHandle") }
@@ -810,7 +817,7 @@ class MainActivity : ComponentActivity() {
                         Tile("Videos", nf.format(yt.optLong("videos")), null, tc, Modifier.weight(1f), go)
                     }
                 }
-                "instagram" -> Section("Instagram" + (ig?.optString("handle")?.takeIf { it.isNotEmpty() }?.let { " · $it" } ?: "")) {
+                "instagram" -> Section("Instagram") {
                     if (ig == null) Panel { Muted("Instagram stats arrive with the morning refresh") }
                     else if (th.flat) {
                         val go = { openApp("com.instagram.android", "https://www.instagram.com/$igHandle") }
@@ -1058,7 +1065,19 @@ class MainActivity : ComponentActivity() {
         val sleep = s.health?.sleepMin?.takeIf { it > 0 }
         val rhr = s.health?.restingHr
         if (d?.hrvLatest == null && sleep == null && rhr == null) return
+        val th = LocalTh.current
+        val est = estimateRecovery(s, cfg.sleepTargetMin)
         Section("Recovery") {
+            if (est != null) Panel {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    T("${est.score}", 44.sp, th.fg, weight = FontWeight.Bold, tracking = (-1).sp)
+                    Column(Modifier.padding(start = 14.dp)) {
+                        T(est.label, 16.sp, th.fg, weight = FontWeight.SemiBold)
+                        T(est.parts.joinToString(" \u00B7 ") { "${it.first} ${it.second}" }, 12.sp, th.muted)
+                    }
+                }
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)) { T("HQ's own estimate from HRV, resting heart rate and sleep. Not Samsung's score.", 11.sp, th.muted) }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tile("HRV", d?.hrvLatest?.let { "${it.toInt()} ms" } ?: "-", d?.hrvAvg7?.let { "7 day avg ${it.toInt()}" }, tc, Modifier.weight(1f))
                 Tile("Resting HR", rhr?.let { "$it" } ?: "-", "bpm", tc, Modifier.weight(1f))

@@ -87,13 +87,14 @@ internal val LocalTh = staticCompositionLocalOf { WOOZY }
 internal fun T(
     text: String, size: TextUnit, color: Color, modifier: Modifier = Modifier,
     weight: FontWeight = FontWeight.Normal, maxLines: Int = Int.MAX_VALUE, center: Boolean = false, caps: Boolean = false,
-    tracking: TextUnit = TextUnit.Unspecified,
+    tracking: TextUnit = TextUnit.Unspecified, italic: Boolean = false,
 ) {
     val th = LocalTh.current
     Text(
         if (caps && th.glass) text.uppercase() else text, modifier = modifier, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
         style = TextStyle(
             fontFamily = GSans, fontSize = size, color = color, fontWeight = weight, letterSpacing = tracking,
+            fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
             textAlign = if (center) TextAlign.Center else TextAlign.Start,
             fontFeatureSettings = "tnum", // tabular numerals so figures and times line up
         ),

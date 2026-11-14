@@ -157,35 +157,53 @@ fun Modifier.glass(backdrop: GlassBackdrop, style: GlassStyle, shape: Shape, blu
 
 
 /**
- * Soft frosted fade under the status bar: content scrolling up blurs and dissolves into the page colour
- * instead of being cut off. Place it as an overlay at the top of the Box that holds the screen.
+ * Soft scroll-edge blur under the status bar, in the spirit of iOS 26: the blur is strongest at the very top and
+ * eases away to nothing, with only a faint wash of the page colour, so content melts out instead of hitting a band.
  */
 @Composable
 fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifier) {
-    val h = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 36.dp
+    val h = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 30.dp
+    val canBlur = Build.VERSION.SDK_INT >= 31
+    Box(modifier.fillMaxWidth().height(h)) {
+        if (canBlur) {
+            // Three blurs stacked, each fading out sooner than the one before: strong at the top, gentle lower down.
+            FadeBlurLayer(backdrop, 4f, 1.0f)
+            FadeBlurLayer(backdrop, 12f, 0.72f)
+            FadeBlurLayer(backdrop, 26f, 0.42f)
+        }
+        Box(
+            Modifier.fillMaxSize().background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to bg.copy(alpha = if (canBlur) 0.50f else 0.95f), 0.5f to bg.copy(alpha = if (canBlur) 0.22f else 0.6f), 1f to Color.Transparent,
+                ),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun FadeBlurLayer(backdrop: GlassBackdrop, radius: Float, endFrac: Float) {
     val blurLayer = rememberGraphicsLayer()
     var pos by remember { mutableStateOf(Offset.Zero) }
-    val canBlur = Build.VERSION.SDK_INT >= 31
     Box(
-        modifier.fillMaxWidth().height(h)
+        Modifier.fillMaxSize()
             .onGloballyPositioned { pos = it.positionInRoot() }
             .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
                 drawRect(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black, 0.5f to Color.Black.copy(alpha = 0.8f), 1f to Color.Transparent),
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black, endFrac to Color.Transparent),
                     blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
                 )
             }
             .drawBehind {
-                if (canBlur && size.width > 0f && size.height > 0f) {
-                    blurLayer.renderEffect = BlurEffect(30f, 30f, TileMode.Clamp)
+                if (size.width > 0f && size.height > 0f) {
+                    blurLayer.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
                     blurLayer.record(size = IntSize(size.width.toInt(), size.height.toInt())) {
                         translate(backdrop.origin.x - pos.x, backdrop.origin.y - pos.y) { drawLayer(backdrop.layer) }
                     }
                     drawLayer(blurLayer)
                 }
-                drawRect(bg.copy(alpha = if (canBlur) 0.80f else 0.95f))
             },
     )
 }
@@ -248,6 +266,48 @@ fun GlassPopupMenu(
             }
         }
     }
+}
+
+/** Switch with a light tick when it flips. */
+@Composable
+fun HapticSwitch(
+    checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier,
+    colors: androidx.compose.material3.SwitchColors = androidx.compose.material3.SwitchDefaults.colors(),
+) {
+    val haptic = LocalHapticFeedback.current
+    androidx.compose.material3.Switch(checked = checked, onCheckedChange = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onCheckedChange(it) }, modifier = modifier, colors = colors)
+}
+
+/**
+ * Pull to refresh with a calmer feel: the spinner stays up for a moment after the data lands instead of
+ * snapping away, it sits under the status bar, and there is a tick when the pull passes the point of no return.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun SmoothRefreshBox(
+    isRefreshing: Boolean, onRefresh: () -> Unit, container: Color, accent: Color,
+    modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
+) {
+    val state = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    val haptic = LocalHapticFeedback.current
+    var held by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(isRefreshing) {
+        if (isRefreshing) held = true else if (held) { kotlinx.coroutines.delay(800); held = false }
+    }
+    androidx.compose.runtime.LaunchedEffect(state) {
+        androidx.compose.runtime.snapshotFlow { state.distanceFraction >= 1f }.collect { if (it) haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+    }
+    val top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = held, onRefresh = onRefresh, state = state, modifier = modifier,
+        indicator = {
+            androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                state = state, isRefreshing = held, containerColor = container, color = accent,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = top),
+            )
+        },
+        content = content,
+    )
 }
 
 data class GlassItem(val label: String, val icon: ImageVector)

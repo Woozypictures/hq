@@ -137,7 +137,7 @@ fun SettingsScreen(
                 T(title, 16.sp, th.fg, weight = FontWeight.Medium)
                 if (note != null) T(note, 12.sp, th.muted)
             }
-            Switch(
+            HapticSwitch(
                 checked = on, onCheckedChange = change,
                 colors = SwitchDefaults.colors(checkedTrackColor = if (th.glass) Color(0x99FFFFFF) else th.tab[0], checkedThumbColor = if (th.glass) Color(0xFF2E2E2E) else Color.White),
             )
@@ -278,7 +278,7 @@ fun SettingsScreen(
             }
 
             Section("dashboard", "Home cards") {
-                val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr") }
+                val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr", "weather") }
                 val cur by rememberUpdatedState(s)
                 val change by rememberUpdatedState(onChange)
                 var dragKey by remember { mutableStateOf<String?>(null) }
@@ -313,7 +313,7 @@ fun SettingsScreen(
                                 }
                             })
                         T(HOME_NAMES[k] ?: k, 15.sp, th.fg, Modifier.weight(1f).padding(start = 4.dp), weight = FontWeight.Medium)
-                        Switch(
+                        HapticSwitch(
                             checked = k !in s.homeHidden, onCheckedChange = { on -> onChange(s.copy(homeHidden = if (on) s.homeHidden - k else s.homeHidden + k)) },
                             colors = SwitchDefaults.colors(checkedTrackColor = if (th.glass) Color(0x99FFFFFF) else th.tab[0], checkedThumbColor = if (th.glass) Color(0xFF2E2E2E) else Color.White),
                         )

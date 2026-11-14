@@ -11,7 +11,7 @@ import java.time.temporal.TemporalAccessor
 import java.util.Locale
 import kotlin.math.roundToInt
 
-val HOME_CARDS = listOf("brief", "headsup", "tasks", "since", "waiting", "hints", "vitals", "calories", "events", "countdowns", "feed", "weather", "steps", "sleep", "rhr")
+val HOME_CARDS = listOf("brief", "headsup", "tasks", "since", "waiting", "hints", "vitals", "calories", "events", "countdowns", "feed", "steps", "sleep", "rhr")
 /** The quick-glance Home: the morning view without the cards other widgets and tabs already cover. */
 val GLANCE_ORDER = listOf("brief", "headsup", "tasks", "events", "countdowns", "since")
 val HOME_NAMES = mapOf(
