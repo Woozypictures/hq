@@ -1,0 +1,105 @@
+name: monthly-backup
+# Failsafe copy of this repo (and, in HQ, the Notion workspace) to Google Drive.
+# Runs 03:00 UTC on the 1st of each month; "Run workflow" on the Actions tab runs it now.
+# Drive layout: Woozy-Failsafe-Backups/YYYY-MM/  - the last 12 months are kept.
+# Setup and restore steps: docs/BACKUPS.md in Woozypictures/hq.
+on:
+  schedule:
+    - cron: "0 3 1 * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: monthly-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Month stamp
+        id: m
+        run: |
+          echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+          echo "backup ${{ github.repository }} $(date -u '+%Y-%m-%d %H:%M') UTC, run ${{ github.run_number }}" > "$RUNNER_TEMP/report.txt"
+
+      - name: Git bundle (full history, every branch) and source zip
+        id: repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          M=${{ steps.m.outputs.month }}; R=${{ github.event.repository.name }}
+          git clone --quiet --mirror "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$RUNNER_TEMP/mirror.git"
+          git -C "$RUNNER_TEMP/mirror.git" bundle create "$PWD/out/$R-$M.bundle" --all
+          git bundle verify "out/$R-$M.bundle"
+          git -C "$RUNNER_TEMP/mirror.git" archive --format=zip --prefix="$R/" -o "$PWD/out/$R-$M-source.zip" HEAD
+          echo "repo: ok ($(git -C "$RUNNER_TEMP/mirror.git" rev-list --all --count) commits, $(git -C "$RUNNER_TEMP/mirror.git" for-each-ref refs/heads | wc -l) branches)" >> "$RUNNER_TEMP/report.txt"
+
+      - name: Notion export
+        id: notion
+        if: hashFiles('scripts/backup-notion.py') != ''
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NOTION_TOKEN" ]; then echo "::error::NOTION_TOKEN secret is not set"; echo "notion: NOTION_TOKEN secret missing" >> "$RUNNER_TEMP/report.txt"; exit 1; fi
+          python3 scripts/backup-notion.py "out/notion-backup-${{ steps.m.outputs.month }}.zip" | tee "$RUNNER_TEMP/notion.txt"
+          echo "notion: $(tail -n 1 "$RUNNER_TEMP/notion.txt")" >> "$RUNNER_TEMP/report.txt"
+
+      - name: Upload to Google Drive and prune old months
+        id: drive
+        continue-on-error: true
+        env:
+          RCLONE_CONF_TEXT: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RCLONE_CONF_TEXT" ]; then echo "::error::RCLONE_CONFIG secret is not set"; echo "drive: RCLONE_CONFIG secret missing" >> "$RUNNER_TEMP/report.txt"; exit 1; fi
+          curl -fsSL https://rclone.org/install.sh | sudo bash > /dev/null
+          printf '%s\n' "$RCLONE_CONF_TEXT" > "$RUNNER_TEMP/rclone.conf"
+          export RCLONE_CONFIG="$RUNNER_TEMP/rclone.conf"
+          REMOTE="$(rclone listremotes | head -n 1)"
+          DEST="${REMOTE}Woozy-Failsafe-Backups"
+          M=${{ steps.m.outputs.month }}
+          rclone copy out "$DEST/$M" --retries 5 --stats-one-line -v
+          rclone check out "$DEST/$M" --one-way --size-only
+          echo "drive: uploaded to Woozy-Failsafe-Backups/$M" >> "$RUNNER_TEMP/report.txt"
+          rclone lsl "$DEST/$M" | tee -a "$RUNNER_TEMP/report.txt"
+          KEEP_FROM=$(date -u -d "$(date -u +%Y-%m-01) -11 months" +%Y-%m)
+          for d in $(rclone lsf --dirs-only "$DEST" | sed 's#/$##' | grep -E '^[0-9]{4}-[0-9]{2}$' || true); do
+            if [[ "$d" < "$KEEP_FROM" ]]; then
+              echo "pruning $d (older than 12 months)" | tee -a "$RUNNER_TEMP/report.txt"
+              rclone purge "$DEST/$d" || true
+            fi
+          done
+
+      - name: Keep a 7-day copy on GitHub if Drive failed
+        if: steps.drive.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ steps.m.outputs.month }}
+          path: out/
+          retention-days: 7
+
+      - name: Publish backup log
+        if: always()
+        run: |
+          ls -la out >> "$RUNNER_TEMP/report.txt" 2>&1 || true
+          echo "repo=${{ steps.repo.outcome }} notion=${{ steps.notion.outcome }} drive=${{ steps.drive.outcome }}" >> "$RUNNER_TEMP/report.txt"
+          cd "$RUNNER_TEMP" && rm -rf log && mkdir log && cd log
+          cp ../report.txt status.txt
+          git init -q -b backup-log
+          git config user.name hq-bot
+          git config user.email hq-bot@users.noreply.github.com
+          git add status.txt && git commit -q -m "backup ${{ github.run_number }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:backup-log
+
+      - name: Fail the run if anything was missed (GitHub emails you)
+        if: steps.notion.outcome == 'failure' || steps.drive.outcome == 'failure'
+        run: |
+          echo "::error::Backup incomplete: notion=${{ steps.notion.outcome }} drive=${{ steps.drive.outcome }}"
+          exit 1
