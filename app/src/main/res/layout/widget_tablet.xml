@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <ImageView
+        android:id="@+id/img"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="HQ"
+        android:scaleType="fitXY" />
+    <!-- Click areas. Weights must match HqTabletWidget.TOP (0.62). -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+        <FrameLayout
+            android:id="@+id/top"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="62" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="38"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/t1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Work Harder" />
+            <FrameLayout android:id="@+id/t2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Habit Tracker" />
+            <FrameLayout android:id="@+id/t3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="IdeaBox" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

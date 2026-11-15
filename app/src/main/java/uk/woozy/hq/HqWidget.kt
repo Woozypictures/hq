@@ -43,6 +43,7 @@ class HqWidget : AppWidgetProvider() {
         fun updateAll(c: Context) {
             val m = AppWidgetManager.getInstance(c)
             m.getAppWidgetIds(ComponentName(c, HqWidget::class.java)).forEach { render(c, m, it) }
+            HqTabletWidget.updateAll(c)
         }
 
         private fun render(c: Context, m: AppWidgetManager, id: Int) {
@@ -66,7 +67,7 @@ class HqWidget : AppWidgetProvider() {
         const val BAR = 0x40FFFFFF
 
         /** Removes emoji and other symbols the widget font can't draw. */
-        private fun clean(t: String) = t.filter { it.isLetterOrDigit() || it.isWhitespace() || it in ".,:;!?'\"()&/+-%·@#£$°" }.replace(Regex("\\s+"), " ").trim()
+        internal fun clean(t: String) = t.filter { it.isLetterOrDigit() || it.isWhitespace() || it in ".,:;!?'\"()&/+-%·@#£$°" }.replace(Regex("\\s+"), " ").trim()
 
         fun draw(c: Context, s: Snapshot, wDp: Int, hDp: Int): Bitmap {
             val d = c.resources.displayMetrics.density.coerceAtMost(3f)
@@ -151,7 +152,7 @@ class HqWidget : AppWidgetProvider() {
             return bmp
         }
 
-        private fun nextEvent(s: Snapshot): String? {
+        internal fun nextEvent(s: Snapshot): String? {
             val now = System.currentTimeMillis()
             val e = s.events?.firstOrNull { it.end > now && !it.allDay } ?: s.events?.firstOrNull() ?: return null
             if (e.allDay) return e.title
