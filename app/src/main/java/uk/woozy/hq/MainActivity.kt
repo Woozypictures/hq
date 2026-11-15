@@ -487,7 +487,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (homeEditing) Pill("Done") { homeEditing = false }
                 AvatarButton()
             }
         }
@@ -528,6 +527,14 @@ class MainActivity : ComponentActivity() {
     private var draggingKey by mutableStateOf<String?>(null)
     private var dragOffset by mutableStateOf(0f)
 
+    /** Drop: the card springs back into its slot, then lands. */
+    private fun settleDrag() {
+        lifecycleScope.launch {
+            androidx.compose.animation.core.animate(dragOffset, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) { v, _ -> dragOffset = v }
+            draggingKey = null
+        }
+    }
+
     /** Long press anywhere on a card (even over its buttons) to start rearranging. */
     private fun Modifier.onLongPress(onLong: () -> Unit): Modifier = pointerInput(Unit) {
         awaitEachGesture {
@@ -558,22 +565,11 @@ class MainActivity : ComponentActivity() {
         val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
         val dragging = draggingKey == key
         val gap = with(LocalDensity.current) { 20.dp.toPx() }
-        // Wiggle only runs while rearranging. An always-on infinite transition kept every Home card asking for frames
-        // at 120Hz even when nothing moved (battery, and frame time stolen from scrolling).
-        val phase = (key.hashCode() and 3) * 40
-        val wig = remember { androidx.compose.animation.core.Animatable(0f) }
-        LaunchedEffect(editing && !dragging) {
-            if (editing && !dragging) while (true) {
-                wig.animateTo(0.9f, tween(130 + phase, easing = LinearEasing)); wig.animateTo(-0.9f, tween(130 + phase, easing = LinearEasing))
-            } else wig.snapTo(0f)
-        }
-
+        // No wiggle: cards stay still, the one you pick up lifts and tilts, and the others glide aside on springs.
         Box(
             Modifier.onSizeChanged { dragHeights[key] = it.height }
-                .graphicsLayer {
-                    if (editing && !dragging) rotationZ = wig.value
-                    if (dragging) { translationY = dragOffset; scaleX = 1.03f; scaleY = 1.03f; shadowElevation = 24f }
-                }
+                .animatePlacement(editing && !dragging)
+                .liftWhileDragging(dragging) { if (draggingKey == key) dragOffset else 0f }
                 .zIndex(if (dragging) 1f else 0f)
                 .then(if (!editing) Modifier.onLongPress { homeEditing = true; haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) } else Modifier),
         ) {
@@ -581,9 +577,9 @@ class MainActivity : ComponentActivity() {
             if (editing) Box(
                 Modifier.align(Alignment.TopEnd).padding(8.dp).size(44.dp).clip(RoundedCornerShape(50)).background(LocalTh.current.panel.copy(alpha = 0.92f)).pointerInput(key) {
                     detectDragGestures(
-                        onDragStart = { draggingKey = key; dragOffset = 0f },
-                        onDragEnd = { draggingKey = null; dragOffset = 0f },
-                        onDragCancel = { draggingKey = null; dragOffset = 0f },
+                        onDragStart = { draggingKey = key; dragOffset = 0f; haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
+                        onDragEnd = { settleDrag() },
+                        onDragCancel = { settleDrag() },
                     ) { change, drag ->
                         change.consume()
                         dragOffset += drag.y
@@ -602,6 +598,7 @@ class MainActivity : ComponentActivity() {
                                 order.removeAt(a); order.add(b, key)
                                 setOrder(tab, order)
                                 dragOffset += if (dragOffset > 0) -oh else oh
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                             }
                         }
                     }
@@ -630,6 +627,7 @@ class MainActivity : ComponentActivity() {
         val th = LocalTh.current
         val vis = orderOf(tab, def).filter { it !in hidden }
         if (homeEditing) T("Drag the handle on a card to move it. Scroll as normal. Tap Done when finished.", 12.sp, th.muted)
+        FloatingDonePill(homeEditing, th.dark, GlassNavHeight + GlassNavLift) { homeEditing = false }
         if (wide() && !homeEditing && vis.size > 1) {
             // Tablet or unfolded phone: two columns, filled left, right, left... so the order still reads top down.
             // Rearranging switches back to one column, where dragging up and down makes sense.
@@ -1173,15 +1171,15 @@ class MainActivity : ComponentActivity() {
         val h = s.feed?.optJSONObject("health")
         val plan = s.fit?.workoutToday?.takeIf { it.isNotBlank() && !it.equals("null", true) } ?: h?.optString("plan")?.takeIf { it.isNotEmpty() && it != "null" }
         val hint = h?.takeIf { !it.isNull("hint") }?.optString("hint")?.takeIf { it.isNotBlank() && !it.equals("null", true) && !it.contains("strava", true) && !(s.health != null && it.contains("Health Connect", true)) }
-        // Fit read today and nothing is planned: a rest day, with a different line each time Home opens.
+        // Same states as Woozy Fit's Today card: today's workout, workout complete, or rest day (nothing assigned).
         val rest = plan == null && s.fit?.date == LocalDate.now(Cfg.zone).toString()
-        val restLine = remember { listOf("Relax and recharge \uD83D\uDEC1", "Hoo-ray, it's your rest day \uD83C\uDF34", "Invest in rest \u2615", "Today's checklist: chill \u2705",
-            "Growth happens while you rest \uD83C\uDF31", "Put your feet up \uD83D\uDECB\uFE0F", "Rest is part of the plan \uD83D\uDE34", "Recover well, come back stronger \uD83D\uDD0B").random() }
         if (plan == null && !rest && hint == null) return
+        val week = s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }
+        val done = plan != null && s.fit?.workoutDone == true
         Section("Training plan", "Woozy Fit", { openFit() }) {
             Panel {
-                if (rest) Line(restLine, s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }) { openFit() }
-                if (plan != null) Line("Today: $plan", s.fit?.let { f -> if (f.doneWeek != null && f.plannedWeek != null) "${f.doneWeek} of ${f.plannedWeek} done this week" else null }) { openFit() }
+                if (rest) Line("Rest day", week) { openFit() }
+                if (plan != null) Line(if (done) "Workout complete: $plan" else "Today: $plan", week) { openFit() }
                 if (hint != null) Line(hint)
             }
         }
