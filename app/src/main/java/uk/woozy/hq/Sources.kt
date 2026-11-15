@@ -271,6 +271,22 @@ object NotionSrc {
         }
         return null
     }
+
+    private const val HEALTH_PAGE = "4194afc9-3b00-81f2-8f9a-e102823ba49d"
+
+    /** Replaces the JSON code block on the HQ Health page. The desktop page reads it. */
+    fun writeHealth(token: String, payload: String) {
+        val res = call(token, "GET", "blocks/$HEALTH_PAGE/children?page_size=20").getJSONArray("results")
+        var id: String? = null
+        for (i in 0 until res.length()) {
+            val b = res.getJSONObject(i)
+            if (b.optString("type") == "code") { id = b.getString("id"); break }
+        }
+        val blockId = id ?: error("HQ Health page has no code block")
+        val rt = JSONArray()
+        payload.chunked(1800).forEach { rt.put(JSONObject().put("type", "text").put("text", JSONObject().put("content", it))) }
+        call(token, "PATCH", "blocks/$blockId", JSONObject().put("code", JSONObject().put("rich_text", rt).put("language", "json")))
+    }
 }
 
 object CalendarSrc {
@@ -557,6 +573,11 @@ object Repo {
             }
             Store.setLocalAt(c, System.currentTimeMillis())
             HqWidget.updateAll(c)
+            if (token.isNotEmpty()) {
+                runCatching { HealthShare.push(c, token, s, manual) }
+                    .onSuccess { Diag.record(c, "Health snapshot", null, false) }
+                    .onFailure { e -> Diag.record(c, "Health snapshot", friendly(e.message ?: e.javaClass.simpleName).take(200), false) }
+            }
             if (!manual) Notifier.afterRefresh(c, s, failed, 6)
             s
         }
@@ -568,3 +589,54 @@ data class FlatMoney(
     val budget: Double, val lodgerBudget: Double, val spent: Double, val bills: Int,
     val expected: Double, val received: Double, val renewalDate: String, val renewalName: String,
 )
+
+
+/** Sends a plain-JSON copy of today's health, Fit and 30-day history to Notion so the desktop page can show it. */
+object HealthShare {
+    private fun p(o: JSONObject, k: String, v: Any?) { o.put(k, v ?: JSONObject.NULL) }
+
+    fun build(s: Snapshot): JSONObject {
+        val o = JSONObject()
+        s.health?.let { h ->
+            val t = JSONObject()
+            p(t, "steps", h.steps); p(t, "sleepMin", h.sleepMin); p(t, "restingHr", h.restingHr)
+            p(t, "activeKcal", h.activeKcal); p(t, "totalKcal", h.totalKcal); p(t, "eatenKcal", h.eatenKcal); p(t, "weightKg", h.weightKg)
+            o.put("today", t)
+        }
+        s.fit?.let { f ->
+            val x = JSONObject()
+            p(x, "date", f.date); p(x, "kcal", f.kcal); p(x, "protein", f.proteinG); p(x, "netCarbs", f.netCarbsG); p(x, "fat", f.fatG); p(x, "waterMl", f.waterMl)
+            p(x, "kcalTarget", f.kcalTarget); p(x, "proteinTarget", f.proteinTarget); p(x, "netCarbsTarget", f.netCarbsTarget); p(x, "fatTarget", f.fatTarget)
+            p(x, "stepsTarget", f.stepsTarget); p(x, "weightKg", f.weightKg)
+            p(x, "workoutToday", f.workoutToday); x.put("workoutDone", f.workoutDone); p(x, "doneWeek", f.doneWeek); p(x, "plannedWeek", f.plannedWeek)
+            o.put("fit", x)
+        }
+        s.sport?.let { sp ->
+            o.put("sessions", JSONArray(sp.sessions.map { JSONObject().put("t", it.start).put("type", it.type).put("min", it.min) }))
+            val r = JSONObject(); p(r, "hrvLatest", sp.hrvLatest); p(r, "hrvAvg7", sp.hrvAvg7); o.put("recovery", r)
+        }
+        s.history?.let { h ->
+            o.put("days", JSONArray(h.days.map { d ->
+                val j = JSONObject().put("d", d.date)
+                p(j, "steps", d.steps); p(j, "sleepMin", d.sleepMin); p(j, "rhr", d.rhr); p(j, "kcal", d.kcal); p(j, "protein", d.protein); j
+            }))
+            o.put("weights", JSONArray(h.weights.map { JSONObject().put("t", it.t).put("kg", it.kg) }))
+        }
+        return o
+    }
+
+    /** At most every 10 minutes, and only when something changed (or every 6 hours regardless). */
+    fun push(c: Context, token: String, s: Snapshot, force: Boolean) {
+        val pr = c.getSharedPreferences("hq", Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val last = pr.getLong("hs_at", 0L)
+        if (!force && now - last < 10 * 60_000L) return
+        val body = build(s)
+        if (body.length() == 0) return
+        val hash = body.toString().hashCode()
+        if (!force && hash == pr.getInt("hs_hash", 0) && now - last < 6 * 3_600_000L) return
+        body.put("updated", java.time.LocalDateTime.now().withSecond(0).withNano(0).toString())
+        NotionSrc.writeHealth(token, body.toString())
+        pr.edit().putLong("hs_at", now).putInt("hs_hash", hash).apply()
+    }
+}

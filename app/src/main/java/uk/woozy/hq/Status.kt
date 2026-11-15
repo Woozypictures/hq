@@ -13,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 
-val SOURCES = listOf("Notion tasks", "Notion countdowns", "HQ Feed", "Calendar", "Health", "Health details", "Health history", "Woozy Fit")
+val SOURCES = listOf("Notion tasks", "Notion countdowns", "HQ Feed", "Calendar", "Health", "Health details", "Health history", "Woozy Fit", "Health snapshot")
 
 data class SourceState(
     val name: String, val lastAttempt: Long = 0, val lastSuccess: Long = 0,
