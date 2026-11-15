@@ -275,14 +275,28 @@ object NotionSrc {
     private const val HEALTH_PAGE = "4194afc9-3b00-81f2-8f9a-e102823ba49d"
 
     /** Replaces the JSON code block on the HQ Health page. The desktop page reads it. */
-    fun writeHealth(token: String, payload: String) {
-        val res = call(token, "GET", "blocks/$HEALTH_PAGE/children?page_size=20").getJSONArray("results")
+    fun writeHealth(token: String, payload: String) = writeCode(token, HEALTH_PAGE, payload)
+
+    /** The text of the first code block on a page, or null. */
+    fun readCode(token: String, page: String): String? {
+        val res = call(token, "GET", "blocks/${page.replace("-", "")}/children?page_size=20").getJSONArray("results")
+        for (i in 0 until res.length()) {
+            val b = res.getJSONObject(i)
+            if (b.optString("type") == "code") return joinText(b.getJSONObject("code").optJSONArray("rich_text"))
+        }
+        return null
+    }
+
+    /** Replaces the first code block on a page (Notion allows 100 text pieces of up to 2,000 characters). */
+    fun writeCode(token: String, page: String, payload: String) {
+        require(payload.length <= 180_000) { "too large for one Notion code block" }
+        val res = call(token, "GET", "blocks/${page.replace("-", "")}/children?page_size=20").getJSONArray("results")
         var id: String? = null
         for (i in 0 until res.length()) {
             val b = res.getJSONObject(i)
             if (b.optString("type") == "code") { id = b.getString("id"); break }
         }
-        val blockId = id ?: error("HQ Health page has no code block")
+        val blockId = id ?: error("That Notion page has no code block")
         val rt = JSONArray()
         payload.chunked(1800).forEach { rt.put(JSONObject().put("type", "text").put("text", JSONObject().put("content", it))) }
         call(token, "PATCH", "blocks/$blockId", JSONObject().put("code", JSONObject().put("rich_text", rt).put("language", "json")))
@@ -577,6 +591,9 @@ object Repo {
                 runCatching { HealthShare.push(c, token, s, manual) }
                     .onSuccess { Diag.record(c, "Health snapshot", null, false) }
                     .onFailure { e -> Diag.record(c, "Health snapshot", friendly(e.message ?: e.javaClass.simpleName).take(200), false) }
+                runCatching { FitDesk.sync(c, token, manual) }
+                    .onSuccess { Diag.record(c, "Desktop workouts", null, false) }
+                    .onFailure { e -> Diag.record(c, "Desktop workouts", friendly(e.message ?: e.javaClass.simpleName).take(200), false) }
             }
             if (!manual) Notifier.afterRefresh(c, s, failed, 6)
             s
@@ -638,5 +655,63 @@ object HealthShare {
         body.put("updated", java.time.LocalDateTime.now().withSecond(0).withNano(0).toString())
         NotionSrc.writeHealth(token, body.toString())
         pr.edit().putLong("hs_at", now).putInt("hs_hash", hash).apply()
+    }
+}
+
+/**
+ * Carries Woozy Fit changes between the phone and the desktop page through Notion.
+ * Desktop -> phone: HQ reads the HQ Fit Inbox page and hands new ops to Woozy Fit (provider call `desk_apply`).
+ * Phone -> desktop: HQ asks Woozy Fit for `desk_export` and writes it to the HQ Fit Sync page when it changes.
+ * Woozy Fit remembers which ops it applied, so running this twice is harmless.
+ */
+object FitDesk {
+    private const val SYNC_PAGE = "4194afc9-3b00-81ac-a727-e6b815af9d99"
+    private const val INBOX_PAGE = "4194afc9-3b00-815d-8e61-d86f0329bfa2"
+    private val URI = android.net.Uri.parse("content://uk.woozy.fit.summary")
+
+    private fun fit(c: Context, method: String, ops: String? = null): JSONObject? {
+        if (!FitSrc.installed(c)) return null
+        val extras = ops?.let { android.os.Bundle().apply { putString("ops", it) } }
+        val b = c.contentResolver.call(URI, method, null, extras) ?: return null
+        b.getString("error")?.let { throw IllegalStateException(if (it == "locked") "Woozy Fit is locked. Open it once" else it) }
+        return b.getString("json")?.let { JSONObject(it) }
+    }
+
+    /** Returns a short status for diagnostics, e.g. "2 changes applied". */
+    fun sync(c: Context, token: String, force: Boolean): String {
+        if (!FitSrc.installed(c)) return "Woozy Fit not installed"
+        val pr = c.getSharedPreferences("hq", Context.MODE_PRIVATE)
+        var note = "up to date"
+        var changed = false
+        val inbox = runCatching { NotionSrc.readCode(token, INBOX_PAGE) }.getOrNull()?.let { runCatching { JSONObject(it) }.getOrNull() }
+        val ops = inbox?.optJSONArray("ops")
+        if (ops != null && ops.length() > 0) {
+            val done = pr.getStringSet("fd_done", emptySet()) ?: emptySet()
+            val fresh = JSONArray()
+            for (i in 0 until ops.length()) { val o = ops.getJSONObject(i); if (o.optString("id") !in done) fresh.put(o) }
+            if (fresh.length() > 0) {
+                val r = fit(c, "desk_apply", fresh.toString())
+                val applied = r?.optJSONArray("applied")
+                val errs = r?.optJSONObject("errors")
+                val ids = HashSet(done)
+                for (i in 0 until fresh.length()) ids += fresh.getJSONObject(i).optString("id")
+                pr.edit().putStringSet("fd_done", ids.toList().takeLast(400).toSet()).apply()
+                note = "${applied?.length() ?: 0} change(s) applied" + if ((errs?.length() ?: 0) > 0) ", ${errs!!.length()} failed" else ""
+                changed = true
+            }
+        }
+        val now = System.currentTimeMillis()
+        val ex = fit(c, "desk_export") ?: return "Woozy Fit did not answer"
+        ex.remove("at")
+        var body = ex.toString()
+        if (body.length > 170_000) { ex.remove("last"); body = ex.toString() }
+        val hash = body.hashCode()
+        val last = pr.getLong("fd_at", 0L)
+        if (changed || force || hash != pr.getInt("fd_hash", 0) || now - last > 6 * 3_600_000L) {
+            ex.put("updated", java.time.LocalDateTime.now().withSecond(0).withNano(0).toString())
+            NotionSrc.writeCode(token, SYNC_PAGE, ex.toString())
+            pr.edit().putLong("fd_at", now).putInt("fd_hash", hash).apply()
+        }
+        return note
     }
 }
