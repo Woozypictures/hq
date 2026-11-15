@@ -532,6 +532,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             androidx.compose.animation.core.animate(dragOffset, 0f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)) { v, _ -> dragOffset = v }
             draggingKey = null
+            window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_PRESS)
         }
     }
 
@@ -708,7 +709,7 @@ class MainActivity : ComponentActivity() {
             val pages = blocks.filter { it.kind == "page" }
             if (pages.isNotEmpty()) Section("Pages") {
                 pages.forEach { b ->
-                    Row(Modifier.fillMaxWidth().card(14.dp, tc).clickable { open(b.url) }.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().card(14.dp, tc).pressable { open(b.url) }.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                         T(b.text.ifBlank { "Untitled" }, 15.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold, maxLines = 2)
                         T(">", 15.sp, th.muted)
                     }
@@ -840,7 +841,7 @@ class MainActivity : ComponentActivity() {
                     else if (LocalTh.current.flat) {
                         val th2 = LocalTh.current
                         cima.take(2).forEach { c ->
-                            Column(Modifier.fillMaxWidth().card(22.dp).clickable { openCountdown(c) }.padding(20.dp)) {
+                            Column(Modifier.fillMaxWidth().card(22.dp).pressable { openCountdown(c) }.padding(20.dp)) {
                                 T(c.name, 14.sp, th2.muted, weight = FontWeight.Medium)
                                 T(c.days.toString(), 64.sp, th2.fg, weight = FontWeight.Bold, tracking = (-2).sp)
                                 T("days to go", 14.sp, th2.muted)
@@ -963,7 +964,7 @@ class MainActivity : ComponentActivity() {
         }
         Panel {
             when {
-                ev == null -> Muted(if (CalendarSrc.granted(this@MainActivity)) "Calendar hasn't loaded yet" else "Allow calendar access in Settings > Connections")
+                ev == null -> if (CalendarSrc.granted(this@MainActivity)) SkeletonBlock(th.fg.copy(alpha = 0.10f), lines = 2) else Muted("Allow calendar access in Settings > Connections")
                 list.isNullOrEmpty() -> Muted(when (range) { 0 -> "Nothing else today"; 1 -> "No all-day events this week"; else -> "No all-day events this month" })
                 else -> list.take(12).forEach { EventRow(it, range > 0) }
             }
@@ -987,7 +988,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (mail != null) for (i in 0 until minOf(mail.length(), 4)) {
                     val m = mail.getJSONObject(i)
-                    Column(Modifier.fillMaxWidth().clickable { open(m.optString("url", "https://mail.google.com/")) }.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Column(Modifier.fillMaxWidth().pressable { open(m.optString("url", "https://mail.google.com/")) }.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         T(m.optString("subject"), 14.sp, th.fg, weight = FontWeight.Medium, maxLines = 1)
                         T("Needs a reply · " + m.optString("from"), 11.sp, th.muted, maxLines = 1)
                     }
@@ -1011,7 +1012,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Line(title: String, sub: String? = null, onClick: (() -> Unit)? = null) {
         val th = LocalTh.current
-        Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = if (th.flat) 10.dp else 8.dp)) {
+        Column(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.pressable(onClick = onClick) else Modifier).padding(horizontal = 16.dp, vertical = if (th.flat) 10.dp else 8.dp)) {
             T(title, 15.sp, th.fg, weight = FontWeight.Medium, maxLines = 2)
             if (sub != null) T(sub, 11.sp, th.muted, maxLines = 2)
         }
@@ -1374,7 +1375,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun HCard(title: String, onClick: (() -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
         val th = LocalTh.current
-        Column(Modifier.fillMaxWidth().card(18.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(16.dp)) {
+        Column(Modifier.fillMaxWidth().card(18.dp).then(if (onClick != null) Modifier.pressable(onClick = onClick) else Modifier).padding(16.dp)) {
             // Same hierarchy as Woozy Fit's cards: a quiet label, then the figure.
             if (th.flat) T(title, 14.sp, th.muted) else T(title, 12.sp, th.muted, weight = FontWeight.SemiBold, caps = true)
             Spacer(Modifier.height(if (th.flat) 6.dp else 4.dp))
@@ -1779,7 +1780,7 @@ class MainActivity : ComponentActivity() {
     private fun Tile(label: String, value: String, sub: String?, tc: Color, modifier: Modifier, onClick: (() -> Unit)? = null) {
         val th = LocalTh.current
         Column(
-            modifier.heightIn(min = 92.dp).card(16.dp, tc).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(if (th.flat) 16.dp else 12.dp),
+            modifier.heightIn(min = 92.dp).card(16.dp, tc).then(if (onClick != null) Modifier.pressable(onClick = onClick) else Modifier).padding(if (th.flat) 16.dp else 12.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             if (th.flat) T(label, 13.sp, th.muted, maxLines = 2)
@@ -1795,7 +1796,7 @@ class MainActivity : ComponentActivity() {
     private fun Pill(label: String, onClick: () -> Unit) {
         val th = LocalTh.current
         Box(Modifier.clip(RoundedCornerShape(50)).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.07f))
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp)) {
+            .pressable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp)) {
             T(label, 12.sp, if (th.glass) th.muted else th.fg, weight = FontWeight.SemiBold, caps = true)
         }
     }
@@ -1823,7 +1824,7 @@ class MainActivity : ComponentActivity() {
             // Woozy rows: 1px hairline between rows (inset to the text), 15sp title, 13sp muted meta.
             val divide = th.flat && index > 0
             Column(
-                Modifier.fillMaxWidth().clickable { open(t.url) }
+                Modifier.fillMaxWidth().pressable { open(t.url) }
                     .then(if (divide) Modifier.drawBehind { drawLine(th.fg.copy(alpha = if (th.dark) 0.12f else 0.08f), Offset(16.dp.toPx(), 0f), Offset(size.width - 16.dp.toPx(), 0f), 1f) } else Modifier)
                     .padding(horizontal = 16.dp, vertical = if (th.flat) 12.dp else 10.dp),
             ) {
@@ -1837,11 +1838,11 @@ class MainActivity : ComponentActivity() {
             when {
                 list == null -> {
                     val st = diag["Notion tasks"]
-                    Muted(when {
+                    (when {
                         Store.token(this@MainActivity).isEmpty() -> "Add your Notion token in Settings > Connections"
                         st != null && !st.ok -> st.lastError
-                        else -> "Tasks haven't loaded yet. Pull down to refresh."
-                    })
+                        else -> null
+                    }?.let { Muted(it) } ?: SkeletonBlock(th.fg.copy(alpha = 0.10f), lines = 3))
                 }
                 list.isEmpty() -> Muted(empty)
                 groupBy != null -> {
@@ -1869,7 +1870,7 @@ class MainActivity : ComponentActivity() {
         }
         val time = if (withDate) Fmt.dayMonth(start.toLocalDate()) + " · " + start.format(DateTimeFormatter.ofPattern("EEE", UK))
             else if (e.allDay) day.ifEmpty { "Today " } + "all day" else day + Fmt.time(start)
-        Row(Modifier.fillMaxWidth().clickable { openEvent(e.id) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().pressable { openEvent(e.id) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             T(time.trim(), 12.sp, th.muted, modifier = Modifier.width(if (withDate) 110.dp else 96.dp), maxLines = 1, weight = FontWeight.Medium, caps = true)
             T(e.title, 15.sp, th.fg, modifier = Modifier.weight(1f), maxLines = 1, weight = FontWeight.Medium)
         }

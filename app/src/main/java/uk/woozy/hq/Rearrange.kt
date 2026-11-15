@@ -79,7 +79,7 @@ fun Modifier.liftWhileDragging(dragging: Boolean, offsetY: () -> Float): Modifie
         val s = 1f + 0.02f * lift
         scaleX = s; scaleY = s
         rotationZ = -1.2f * lift
-        shadowElevation = 28f * lift
+        shadowElevation = if (lift > 0.02f) 24f else 0f // not animated: shadows are the expensive part
         shape = RoundedCornerShape(22.dp)
         clip = false
     }
@@ -117,4 +117,26 @@ fun FloatingDonePill(visible: Boolean, dark: Boolean, aboveNav: Dp, label: Strin
             Text(label, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = ink))
         }
     }
+}
+
+/**
+ * Tap target with an iOS-style feel: scales to 0.97 on a spring while pressed (GPU layer only, no layout change),
+ * no ripple flash, and a crisp tick the moment the press registers (inside a scroll this waits for the short tap
+ * timeout, so scrolling past a card never ticks).
+ */
+fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val s by animateFloatAsState(if (pressed) 0.97f else 1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessHigh), label = "press")
+    androidx.compose.runtime.LaunchedEffect(source) {
+        source.interactions.collect { if (it is androidx.compose.foundation.interaction.PressInteraction.Press) crispTick(view) }
+    }
+    this.graphicsLayer { scaleX = s; scaleY = s }
+        .clickable(interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+}
+
+/** Shortest, sharpest haptic the phone has (a keyboard-style tick), not a buzz. */
+fun crispTick(v: android.view.View) {
+    v.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 27) android.view.HapticFeedbackConstants.KEYBOARD_PRESS else android.view.HapticFeedbackConstants.KEYBOARD_TAP)
 }
