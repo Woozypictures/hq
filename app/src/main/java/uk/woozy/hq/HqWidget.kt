@@ -152,6 +152,27 @@ class HqWidget : AppWidgetProvider() {
             return bmp
         }
 
+        /** The next [n] timed events (all-day ones only if nothing else is left), formatted like nextEvent. */
+        internal fun nextEvents(s: Snapshot, n: Int): List<String> {
+            val now = System.currentTimeMillis()
+            val all = s.events.orEmpty()
+            val timed = all.filter { it.end > now && !it.allDay }
+            return (timed.ifEmpty { all.filter { it.allDay } }).take(n).map { fmt(it) }
+        }
+
+        private fun fmt(e: Event): String {
+            if (e.allDay) return e.title
+            val z = ZoneId.systemDefault()
+            val t = Instant.ofEpochMilli(e.start).atZone(z)
+            val today = LocalDate.now(z)
+            val day = when (t.toLocalDate()) {
+                today -> ""
+                today.plusDays(1) -> "Tmrw "
+                else -> t.format(DateTimeFormatter.ofPattern("EEE ", Locale.UK))
+            }
+            return "$day${Fmt.time(t)} · ${e.title}"
+        }
+
         internal fun nextEvent(s: Snapshot): String? {
             val now = System.currentTimeMillis()
             val e = s.events?.firstOrNull { it.end > now && !it.allDay } ?: s.events?.firstOrNull() ?: return null

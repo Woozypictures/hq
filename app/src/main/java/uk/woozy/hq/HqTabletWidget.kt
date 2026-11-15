@@ -22,7 +22,7 @@ import java.time.LocalDate
 
 /**
  * Tablet home-screen widget. Same glass as the phone widget (Music Player Glass KWGT) with more room:
- * top priority plus the next two tasks on the left, next event and today's training on the right, and a row of
+ * Bento split 55/45: top priority (two lines) plus the next action items on the left; next two events and a training pill on the right, and a row of
  * three glass tiles copied from the Work Harder / Habit Tracker / IdeaBox Glass KWGTs (same fill, rim, corner ratio
  * and Frosted Glass icon font) that open their Notion pages directly. Tapping the top part opens HQ.
  *
@@ -39,8 +39,8 @@ class HqTabletWidget : AppWidgetProvider() {
     override fun onAppWidgetOptionsChanged(c: Context, m: AppWidgetManager, id: Int, o: Bundle) = render(c, m, id)
 
     companion object {
-        /** Share of the height used by the info area; the tile row takes the rest (layout weights 62 / 38). */
-        private const val TOP = 0.62f
+        /** Share of the height used by the info area; the tile row takes the rest (layout weights 66 / 34). */
+        private const val TOP = 0.66f
 
         private data class Tile(val label: String, val glyph: Char, val url: String)
 
@@ -125,48 +125,78 @@ class HqTabletWidget : AppWidgetProvider() {
 
             val padX = pad + cardR * 0.35f
             val left = padX; val right = w - padX
-            val split = left + (right - left) * 0.62f
-            val gutter = 14f * d
+            val split = left + (right - left) * 0.55f
+            val gutter = 16f * d
+            val gap = 7f * d
+            val areaTop = pad * 0.6f
+            val areaH = topH - areaTop
 
-            // Left: top priority and the next two tasks.
+            // Left column (Notion command zone): label, top task on up to two lines, then the next action items.
             val tasks = s.tasks.orEmpty().map { HqWidget.clean(it.title) }.filter { it.isNotEmpty() }
-            val mail = s.feed?.optJSONArray("emails")?.length() ?: 0
+            val emails = s.feed?.optJSONArray("emails")
+            val mail = emails?.length() ?: 0
             val lbl = when {
                 mail == 1 -> "TOP PRIORITY · 1 REPLY DUE"
                 mail > 1 -> "TOP PRIORITY · $mail REPLIES DUE"
                 else -> "TOP PRIORITY"
             }
             val top = tasks.firstOrNull() ?: if (Store.token(c).isEmpty()) "Open HQ to set up" else "Nothing in Do now"
-            val more = tasks.drop(1).take(if (topH > 120f * d) 2 else 1)
+            val replies = (0 until mail).mapNotNull { i ->
+                emails?.optJSONObject(i)?.let { e ->
+                    val who = HqWidget.clean(e.optString("from")).substringBefore("<").trim()
+                    val subj = HqWidget.clean(e.optString("subject"))
+                    "Reply · " + listOf(who, subj).filter { it.isNotEmpty() }.joinToString(": ")
+                }
+            }
             val lw = split - gutter - left
-            val gap = 7f * d
-            val leftBlock = label.textSize + gap + title.textSize + more.size * (gap * 0.8f + detail.textSize)
-            var y = (topH - leftBlock) / 2f + label.textSize * 0.82f + pad * 0.3f
+            val titleLayout = android.text.StaticLayout.Builder.obtain(top, 0, top.length, title, lw.toInt().coerceAtLeast(1))
+                .setMaxLines(2).setEllipsize(TextUtils.TruncateAt.END).setLineSpacing(0f, 1.05f).setIncludePad(false).build()
+            val itemH = gap * 0.9f + detail.textSize
+            val room = areaH - (label.textSize + gap + titleLayout.height) - gap
+            val items = (replies.take(1) + tasks.drop(1) + replies.drop(1)).take((room / itemH).toInt().coerceIn(0, 2))
+            val leftBlock = label.textSize + gap + titleLayout.height + items.size * itemH
+            var y = areaTop + (areaH - leftBlock) / 2f + label.textSize * 0.82f
             text(lbl, left, y, label, lw)
-            y += gap + title.textSize
-            text(top, left, y, title, lw)
-            more.forEach { y += gap * 0.8f + detail.textSize; text(it, left, y, detail, lw) }
+            cv.save(); cv.translate(left, y + gap); titleLayout.draw(cv); cv.restore()
+            y += gap + titleLayout.getLineBaseline(titleLayout.lineCount - 1)
+            items.forEach { y += itemH; text(it, left, y, detail, lw) }
 
-            cv.drawLine(split, topH * 0.24f + pad * 0.3f, split, topH * 0.86f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            cv.drawLine(split, areaTop + areaH * 0.12f, split, areaTop + areaH * 0.9f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = 0x3AFFFFFF; strokeWidth = 1f * d
             })
 
-            // Right: next event over today's training, each under its micro-label.
-            val ev = HqWidget.nextEvent(s)?.let { HqWidget.clean(it) } ?: "No more events"
+            // Right column (schedule and training): next two events, then today's training as a pill.
+            val evs = HqWidget.nextEvents(s, 2).map { HqWidget.clean(it) }.ifEmpty { listOf("No more events") }
             val f = s.fit
             val today = LocalDate.now().toString()
+            val done = f != null && f.date == today && f.workoutDone
             val plan = when {
                 f == null || f.date != today -> "Open Woozy Fit"
-                !f.workoutToday.isNullOrBlank() -> HqWidget.clean(f.workoutToday) + if (f.workoutDone) " · Done" else ""
+                !f.workoutToday.isNullOrBlank() -> HqWidget.clean(f.workoutToday) + if (done) " · Done" else ""
                 else -> "Rest Day"
             }
-            val rw = right - split - gutter
-            val rightBlock = 2 * (label.textSize + gap * 0.6f + detail.textSize) + gap * 1.6f
-            var yr = (topH - rightBlock) / 2f + label.textSize * 0.82f + pad * 0.3f
-            text("NEXT UP", right, yr, label, rw, right = true)
-            yr += gap * 0.6f + detail.textSize; text(ev, right, yr, detail, rw, right = true)
-            yr += gap * 1.6f + label.textSize; text("TRAINING", right, yr, label, rw, right = true)
-            yr += gap * 0.6f + detail.textSize; text(plan, right, yr, muted, rw, right = true)
+            val rx = split + gutter
+            val rw = right - rx
+            val pillText = tp(13f, HqWidget.TXT)
+            val pillH = pillText.textSize + 12f * d
+            val rightBlock = label.textSize + gap * 0.6f + evs.size * (detail.textSize + gap * 0.7f) + gap * 1.2f + label.textSize + gap * 0.8f + pillH
+            var yr = areaTop + (areaH - rightBlock) / 2f + label.textSize * 0.82f
+            text("NEXT UP", rx, yr, label, rw)
+            yr += gap * 0.6f
+            evs.forEachIndexed { i, e -> yr += detail.textSize + gap * 0.7f; text(e, rx, yr, if (i == 0) tp(13.5f, 0xCCFFFFFF.toInt()) else detail, rw) }
+            yr += gap * 1.2f + label.textSize
+            text("TRAINING", rx, yr, label, rw)
+            val pillTop = yr + gap * 0.8f
+            val tw = pillText.measureText(plan).coerceAtMost(rw - 24f * d)
+            val dot = if (done) 8f * d else 0f
+            val pill = RectF(rx, pillTop, rx + tw + 24f * d + dot, pillTop + pillH)
+            cv.drawRoundRect(pill, pillH / 2, pillH / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (done) 0x2EFFFFFF else 0x18FFFFFF })
+            cv.drawRoundRect(pill, pillH / 2, pillH / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE; strokeWidth = 1f * d
+                shader = LinearGradient(pill.left, 0f, pill.right, 0f, 0x3AFFFFFF, 0x60FFFFFF, Shader.TileMode.CLAMP)
+            })
+            if (done) cv.drawCircle(pill.left + 12f * d, pill.centerY(), 3f * d, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = HqWidget.TXT })
+            text(plan, pill.left + 12f * d + dot, pill.centerY() + pillText.textSize * 0.35f, pillText, tw)
 
             // Tile row: three glass tiles, KWGT fill/rim, icon from the Frosted Glass font, label beside it.
             val cellW = w / 3f
