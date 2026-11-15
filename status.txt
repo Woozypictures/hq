@@ -1,0 +1,16 @@
+backup Woozypictures/hq 2026-11-15 18:53 UTC, run 2
+repo: ok (92 commits, 10 branches)
+notion:   ! blocks 1b3e0118-11db-4b8a-a9c4-ca2656cf0904: GET /blocks/1b3e0118-11db-4b8a-a9c4-ca2656cf0904/children?page_size=100 -> 404: {"object":"error","status":404,"code":"object_not_found","message":"Could not find block with ID: 91eef9e8-42c8-4d15-a9d0-6713fa73084a. Make sure the relevant pages and databases are shared with your integration \"HQ\".","additional_data":{"integration_id":"4144afc9-3b00-81f9-8ec6-00274dab24b2"},"re
+drive: uploaded to Woozy-Failsafe-Backups/2026-11
+208308502 2026-11-15 19:14:14.389000000 notion-backup-2026-11.zip
+   891526 2026-11-15 18:54:22.197000000 hq-fit-2026-11-source.zip
+  6304501 2026-11-15 18:54:22.090000000 hq-fit-2026-11.bundle
+   281778 2026-11-15 18:53:35.943000000 hq-2026-11-source.zip
+ 56116494 2026-11-15 18:53:35.899000000 hq-2026-11.bundle
+total 258520
+drwxr-xr-x  2 runner runner      4096 Nov 15 18:53 .
+drwxr-xr-x 10 runner runner      4096 Nov 15 18:53 ..
+-rw-r--r--  1 runner runner    281778 Nov 15 18:53 hq-2026-11-source.zip
+-rw-r--r--  1 runner runner  56116494 Nov 15 18:53 hq-2026-11.bundle
+-rw-r--r--  1 runner runner 208308502 Nov 15 19:14 notion-backup-2026-11.zip
+repo=success notion=success drive=success
