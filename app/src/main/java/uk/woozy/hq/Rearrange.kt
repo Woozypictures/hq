@@ -90,7 +90,7 @@ fun Modifier.liftWhileDragging(dragging: Boolean, offsetY: () -> Float): Modifie
  * floating nav ([aboveNav]), with a 1px specular rim and a spring press. Drawn in a popup so it floats over any page.
  */
 @Composable
-fun FloatingDonePill(visible: Boolean, dark: Boolean, aboveNav: Dp, onDone: () -> Unit, label: String = "Done") {
+fun FloatingDonePill(visible: Boolean, dark: Boolean, aboveNav: Dp, label: String = "Done", onDone: () -> Unit) {
     if (!visible) return
     val nb = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val source = remember { MutableInteractionSource() }
