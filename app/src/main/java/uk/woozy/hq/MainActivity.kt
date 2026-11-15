@@ -183,6 +183,28 @@ class MainActivity : ComponentActivity() {
                         snap = snap, diag = diag, errlog = errlog, start = settingsStart,
                         versionText = versionText(), actions = actions(), onBack = { settingsOpen = false },
                     ) else Screen()
+                    // Once: ask Android to let HQ's refresh job, widget and Health Connect reads run on time.
+                    var batteryAsk by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        val pm = getSystemService(android.os.PowerManager::class.java)
+                        val seen = getSharedPreferences("battery", MODE_PRIVATE).getBoolean("asked", false)
+                        if (!seen && pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) batteryAsk = true
+                    }
+                    if (batteryAsk) {
+                        val done = { batteryAsk = false; getSharedPreferences("battery", MODE_PRIVATE).edit().putBoolean("asked", true).apply() }
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = done,
+                            title = { T("Keep HQ up to date", 18.sp, th.fg, weight = FontWeight.SemiBold) },
+                            text = { T("Let Woozy HQ run without battery limits, so the widget and your health numbers refresh on time in the background.", 14.sp, th.muted) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    done()
+                                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) }
+                                }) { T("Allow", 15.sp, th.fg, weight = FontWeight.SemiBold) }
+                            },
+                            dismissButton = { androidx.compose.material3.TextButton(onClick = done) { T("Not now", 15.sp, th.muted) } },
+                        )
+                    }
                     androidx.compose.animation.AnimatedVisibility(splash, exit = androidx.compose.animation.fadeOut(tween(220))) {
                         Box(Modifier.fillMaxSize().background(th.bg), contentAlignment = Alignment.Center) {
                             T("Woozy HQ", 20.sp, th.muted, weight = FontWeight.SemiBold)
