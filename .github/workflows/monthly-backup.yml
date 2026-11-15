@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           if [ -z "$NOTION_TOKEN" ]; then echo "::error::NOTION_TOKEN secret is not set"; echo "notion: NOTION_TOKEN secret missing" >> "$RUNNER_TEMP/report.txt"; exit 1; fi
           python3 scripts/backup-notion.py "out/notion-backup-${{ steps.m.outputs.month }}.zip" | tee "$RUNNER_TEMP/notion.txt"
-          echo "notion: $(tail -n 1 "$RUNNER_TEMP/notion.txt")" >> "$RUNNER_TEMP/report.txt"
+          echo "notion: $(grep "^Wrote" "$RUNNER_TEMP/notion.txt")" >> "$RUNNER_TEMP/report.txt"
 
       - name: Upload to Google Drive and prune old months
         id: drive
