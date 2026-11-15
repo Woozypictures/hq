@@ -156,7 +156,7 @@ fun SettingsScreen(
                 singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = TextStyle(fontFamily = GSans, fontSize = 16.sp, color = th.fg, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(th.fg),
-                modifier = Modifier.width(88.dp).border(1.dp, th.hair, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
+                modifier = Modifier.width(88.dp).border(1.dp, th.hair, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
             )
             T(" $unit", 13.sp, th.muted, Modifier.width(40.dp))
         }
@@ -172,7 +172,7 @@ fun SettingsScreen(
                 textStyle = TextStyle(fontFamily = GSans, fontSize = 15.sp, color = th.fg),
                 cursorBrush = SolidColor(th.fg),
                 decorationBox = { inner -> Box { if (txt.isEmpty()) T(hint, 15.sp, th.muted); inner() } },
-                modifier = Modifier.fillMaxWidth().border(1.dp, th.hair, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, th.hair, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
             )
             Spacer(Modifier.height(6.dp))
             Chip("Save", false) { onSave(txt); if (secret) txt = "" }

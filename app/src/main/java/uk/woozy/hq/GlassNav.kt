@@ -374,7 +374,7 @@ fun GlassToast(text: String, visible: Boolean, backdrop: GlassBackdrop, style: G
         // A solid ink toast (as Samsung's "Last synced"), so it never reads as glass stacked on the glass pill.
         val dark = style.tint.red < 0.5f
         Box(
-            Modifier.shadow(12.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp))
+            Modifier.shadow(12.dp, RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp))
                 .background(if (dark) Color(0xFFF2F2F0) else Color(0xFF1C1D1F)).padding(horizontal = 20.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -726,7 +726,7 @@ fun GlassRestPill(
         Spacer(Modifier.width(10.dp))
         Text(
             "%d:%02d".format(sec / 60, sec % 60),
-            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = style.ink, letterSpacing = (-0.4).sp, fontFeatureSettings = "tnum"),
+            style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = style.ink, letterSpacing = (-0.4).sp, fontFeatureSettings = "tnum"),
         )
         Spacer(Modifier.width(14.dp))
         Box(

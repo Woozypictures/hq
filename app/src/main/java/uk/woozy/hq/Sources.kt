@@ -361,10 +361,11 @@ object HealthSrc {
             ascendingOrder = false, pageSize = 1)).records.firstOrNull()?.weight?.inKilograms else null
 
         return Health(
-            steps = agg?.get(StepsRecord.COUNT_TOTAL),
+            // A new day with nothing recorded yet is 0, not a dash; a dash only means the permission is off.
+            steps = if (has(StepsRecord::class)) (agg?.get(StepsRecord.COUNT_TOTAL) ?: 0L) else null,
             sleepMin = sleep,
             restingHr = rhr,
-            activeKcal = agg?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories,
+            activeKcal = if (has(ActiveCaloriesBurnedRecord::class)) (agg?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories ?: 0.0) else null,
             totalKcal = agg?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories,
             eatenKcal = agg?.get(NutritionRecord.ENERGY_TOTAL)?.inKilocalories,
             weightKg = weight,
