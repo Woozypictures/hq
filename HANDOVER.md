@@ -160,3 +160,4 @@ The picture is no longer chosen in the app. Every refresh `NotionSrc.pageIcon` r
 - Home cards page: live mini preview of Home at the top.
 - Battery question in MainActivity is now a ModalBottomSheet (Allow pill / Not now), no centre pop-ups left. HQ has no dropdown menus.
 - CI run 93 green.
+- 16 Nov (later): Settings list uses Fit's exact parts (outlined search, icon rows with chevrons, Fit page names; material-icons-extended added). Phone widget: 26dp corners, tall layout (two-line task, "Then:" next task, two events), events under way show "Now". Health: Muscle map card reading content://uk.woozy.fit.summary/muscles (`HqMuscles.kt`). CI 94-96 green.
