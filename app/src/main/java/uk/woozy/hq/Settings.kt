@@ -20,9 +20,9 @@ val HOME_NAMES = mapOf(
     "steps" to "Steps (wide card)", "sleep" to "Sleep (wide card)", "rhr" to "Resting heart rate (wide card)",
     "events" to "Upcoming events", "countdowns" to "Countdowns", "feed" to "HQ Feed",
 )
-val HEALTH_CARDS = listOf("plan", "sport", "recovery", "steps", "sleep", "rhr", "weight", "nutrition", "fitness", "activity", "weekly")
+val HEALTH_CARDS = listOf("plan", "sport", "recovery", "muscles", "steps", "sleep", "rhr", "weight", "nutrition", "fitness", "activity", "weekly")
 val HEALTH_NAMES = mapOf(
-    "plan" to "Training plan and suggestion", "sport" to "Workouts this week", "recovery" to "Recovery",
+    "plan" to "Training plan and suggestion", "sport" to "Workouts this week", "recovery" to "Recovery", "muscles" to "Muscle map",
     "steps" to "Steps", "sleep" to "Sleep", "rhr" to "Resting heart rate", "weight" to "Weight",
     "nutrition" to "Nutrition", "fitness" to "Woozy Fit (workout and check-in)", "activity" to "Calories burned", "weekly" to "Weekly overview",
 )

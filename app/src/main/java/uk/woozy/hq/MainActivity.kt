@@ -824,6 +824,13 @@ class MainActivity : ComponentActivity() {
                 "plan" -> PlanCard(s)
                 "sport" -> SportCard(s)
                 "recovery" -> RecoveryCard(s)
+                "muscles" -> {
+                    // Read live from Woozy Fit each time the card shows (cheap, on-device).
+                    val rows by androidx.compose.runtime.produceState<List<MuscleRow>?>(null, s.fit?.readAt) {
+                        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { FitMuscles.read(this@MainActivity) }
+                    }
+                    HCard("Muscles", { openFit() }) { MuscleMapContent(rows, tc) }
+                }
                 "steps" -> StepsCard(s) { openShealth("pedometer") }
                 "sleep" -> SleepCard(s) { openShealth("sleep") }
                 "rhr" -> RhrCard(s) { openShealth("heartrate") }
