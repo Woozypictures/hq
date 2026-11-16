@@ -124,7 +124,7 @@ fun FloatingDonePill(visible: Boolean, dark: Boolean, aboveNav: Dp, label: Strin
  * no ripple flash, and a crisp tick the moment the press registers (inside a scroll this waits for the short tap
  * timeout, so scrolling past a card never ticks).
  */
-fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier = composed {
+fun Modifier.pressable(enabled: Boolean = true, role: Role = Role.Button, onClick: () -> Unit): Modifier = composed {
     val view = androidx.compose.ui.platform.LocalView.current
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
@@ -133,7 +133,7 @@ fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier =
         source.interactions.collect { if (it is androidx.compose.foundation.interaction.PressInteraction.Press) crispTick(view) }
     }
     this.graphicsLayer { scaleX = s; scaleY = s }
-        .clickable(interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+        .clickable(interactionSource = source, indication = null, enabled = enabled, role = role, onClick = onClick)
 }
 
 /** Shortest, sharpest haptic the phone has (a keyboard-style tick), not a buzz. */

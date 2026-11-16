@@ -1,5 +1,7 @@
 package uk.woozy.hq
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import android.os.Build
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -41,8 +43,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.asComposeRenderEffect
@@ -365,7 +370,10 @@ fun GlassTopFade(backdrop: GlassBackdrop, bg: Color, modifier: Modifier = Modifi
 
 /** Small frosted pop-up that appears briefly (for example "Last refreshed 18:27") and fades away. */
 @Composable
-fun GlassToast(text: String, visible: Boolean, backdrop: GlassBackdrop, style: GlassStyle, modifier: Modifier = Modifier) {
+fun GlassToast(
+    text: String, visible: Boolean, backdrop: GlassBackdrop, style: GlassStyle, modifier: Modifier = Modifier,
+    action: String? = null, onAction: () -> Unit = {},
+) {
     androidx.compose.animation.AnimatedVisibility(
         visible = visible, modifier = modifier,
         enter = androidx.compose.animation.fadeIn(tween(180)) + androidx.compose.animation.scaleIn(tween(180), initialScale = 0.92f),
@@ -378,7 +386,18 @@ fun GlassToast(text: String, visible: Boolean, backdrop: GlassBackdrop, style: G
                 .background(if (dark) Color(0xFFF2F2F0) else Color(0xFF1C1D1F)).padding(horizontal = 20.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (dark) Color(0xFF1C1D1F) else Color.White))
+            val fg = if (dark) Color(0xFF1C1D1F) else Color.White
+            if (action == null) Text(text, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = fg))
+            else androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = fg))
+                androidx.compose.foundation.layout.Spacer(Modifier.size(14.dp))
+                Text(
+                    action, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = fg),
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                        .then(Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onAction))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }
@@ -704,13 +723,30 @@ fun GlassRestPill(
     onSkip: () -> Unit,
     modifier: Modifier = Modifier,
     solid: Boolean = false,
+    onTapTime: (() -> Unit)? = null,
 ) {
     val shape = CircleShape
     val frac = if (totalMs > 0) (leftMs.toFloat() / totalMs).coerceIn(0f, 1f) else 0f
     val shown by androidx.compose.animation.core.animateFloatAsState(frac, tween(300), label = "rest")
     val sec = ((leftMs + 999) / 1000).toInt()
+    // Swipe the pill sideways to skip the rest (GymMane), as well as the Skip button. Transform-only, springs back.
+    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val skipPx = with(androidx.compose.ui.platform.LocalDensity.current) { 96.dp.toPx() }
     Row(
-        modifier.height(56.dp)
+        modifier
+            .graphicsLayer { translationX = drag.value; alpha = 1f - (kotlin.math.abs(drag.value) / (skipPx * 2.2f)).coerceIn(0f, 0.6f) }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (kotlin.math.abs(drag.value) > skipPx) { onSkip(); scope.launch { drag.snapTo(0f) } }
+                        else scope.launch { drag.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 500f)) }
+                    },
+                    onDragCancel = { scope.launch { drag.animateTo(0f) } },
+                    onHorizontalDrag = { _, dx -> scope.launch { drag.snapTo(drag.value + dx) } },
+                )
+            }
+            .height(56.dp)
             .then(if (solid) Modifier.solidGlass(style, shape) else Modifier.glass(backdrop, style, shape))
             .drawWithContent {
                 drawContent()
@@ -722,12 +758,17 @@ fun GlassRestPill(
             .padding(start = 20.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Rest", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, color = style.muted))
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "%d:%02d".format(sec / 60, sec % 60),
-            style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = style.ink, letterSpacing = (-0.4).sp, fontFeatureSettings = "tnum"),
-        )
+        Row(
+            (if (onTapTime != null) Modifier.clip(CircleShape).selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = NoIndication, onClick = onTapTime) else Modifier),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Rest", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, color = style.muted))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "%d:%02d".format(sec / 60, sec % 60),
+                style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = style.ink, letterSpacing = (-0.4).sp, fontFeatureSettings = "tnum"),
+            )
+        }
         Spacer(Modifier.width(14.dp))
         Box(
             Modifier.clip(CircleShape).selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = NoIndication, onClick = onAdd)
@@ -738,5 +779,81 @@ fun GlassRestPill(
                 .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = NoIndication, onClick = onSkip)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) { Text("Skip", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = style.ink)) }
+    }
+}
+
+/** Places a menu under its anchor, right edges lined up, flipping above when there is no room below. */
+private class BelowAnchorPosition(private val gapPx: Int) : androidx.compose.ui.window.PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: androidx.compose.ui.unit.IntRect, windowSize: androidx.compose.ui.unit.IntSize,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection, popupContentSize: androidx.compose.ui.unit.IntSize,
+    ): androidx.compose.ui.unit.IntOffset {
+        val x = (anchorBounds.right - popupContentSize.width).coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+        var y = anchorBounds.bottom + gapPx
+        if (y + popupContentSize.height > windowSize.height) y = (anchorBounds.top - gapPx - popupContentSize.height).coerceAtLeast(0)
+        return androidx.compose.ui.unit.IntOffset(x, y)
+    }
+}
+
+/**
+ * The pill-style menu used everywhere a ⋮ or long-press menu opens (iOS-like, matching the + menu): a frosted
+ * rounded panel that springs out of its anchor, items with hairlines between them and a light tick on tap.
+ * Drop-in for Material's DropdownMenu: put it next to the button inside the same Box.
+ */
+@Composable
+fun GlassDropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    if (!expanded) return
+    // HQ's theme (LocalTh) in place of Woozy Fit's HqTheme; everything else in this file matches Fit's copy exactly.
+    val c = LocalTh.current
+    val style = remember(c) { glassStyle(c.dark, c.fg, c.muted) }
+    val reduce = rememberReduceMotion()
+    val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 6.dp.roundToPx() }
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false) }.apply { targetState = true }
+    androidx.compose.ui.window.Popup(
+        popupPositionProvider = remember(gap) { BelowAnchorPosition(gap) },
+        onDismissRequest = onDismissRequest,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+    ) {
+        androidx.compose.animation.AnimatedVisibility(
+            visibleState = shown,
+            enter = androidx.compose.animation.fadeIn(tween(140)) + androidx.compose.animation.scaleIn(
+                androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = 600f),
+                initialScale = if (reduce) 1f else 0.85f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f),
+            ),
+        ) {
+            Column(
+                Modifier.padding(horizontal = 8.dp).widthIn(min = 220.dp, max = 300.dp)
+                    .shadow(18.dp, RoundedCornerShape(24.dp))
+                    .solidGlass(style, RoundedCornerShape(24.dp))
+                    .padding(vertical = 6.dp),
+            ) {
+                val counter = remember { IntArray(1) }
+                counter[0] = 0
+                androidx.compose.runtime.CompositionLocalProvider(LocalGlassMenuStyle provides style, LocalGlassMenuCount provides counter) { content() }
+            }
+        }
+    }
+}
+
+internal val LocalGlassMenuStyle = androidx.compose.runtime.staticCompositionLocalOf<GlassStyle?> { null }
+internal val LocalGlassMenuCount = androidx.compose.runtime.staticCompositionLocalOf<IntArray?> { null }
+
+/** One row in a [GlassDropdownMenu]. [text] is usually an HqText; [danger] colours it as a warning. */
+@Composable
+fun GlassDropdownItem(text: @Composable () -> Unit, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val style = LocalGlassMenuStyle.current
+    val counter = LocalGlassMenuCount.current
+    val first = remember { counter?.let { it[0]++ == 0 } ?: true }
+    Column {
+        if (!first && style != null) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(0.5.dp).background(style.outline))
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                .selectable(selected = false, role = Role.Button, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick()
+                }
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) { text() }
     }
 }
