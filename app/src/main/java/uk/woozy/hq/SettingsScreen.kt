@@ -1,5 +1,15 @@
 package uk.woozy.hq
 
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -264,36 +274,32 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (open.isEmpty()) {
-                // Search (as in Woozy Fit): finds a page by its name or by any setting inside it.
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(50)).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.07f))
-                        .padding(horizontal = 18.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BasicTextField(
-                        value = query, onValueChange = { query = it }, singleLine = true,
-                        textStyle = TextStyle(fontFamily = GSans, fontSize = 16.sp, color = th.fg), cursorBrush = SolidColor(th.fg),
-                        decorationBox = { inner -> Box { if (query.isEmpty()) T("Search settings", 16.sp, th.muted); inner() } },
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (query.isNotEmpty()) T("\u2715", 16.sp, th.muted, Modifier.clip(CircleShape).clickable { query = "" }.padding(6.dp))
-                }
+                // Same parts as Woozy Fit's Settings: outlined search with a magnifier, group labels, cards of icon rows.
+                androidx.compose.material3.OutlinedTextField(
+                    value = query, onValueChange = { query = it }, singleLine = true,
+                    placeholder = { T("Search settings", 15.sp, th.muted) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = th.muted) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) Icon(Icons.Rounded.Close, contentDescription = "Clear search", tint = th.muted,
+                            modifier = Modifier.size(40.dp).clip(CircleShape).clickable { query = "" }.padding(8.dp))
+                    },
+                    textStyle = TextStyle(fontFamily = GSans, fontSize = 15.sp, color = th.fg),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = th.tab[0], unfocusedBorderColor = th.fg.copy(alpha = 0.18f),
+                        focusedTextColor = th.fg, unfocusedTextColor = th.fg, cursorColor = th.fg,
+                    ),
+                    shape = RoundedCornerShape(28.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 val q = query.trim().lowercase()
-                val hits = if (q.isEmpty()) SETTING_PAGES else SETTING_PAGES.filter { e -> q.split(' ').filter { it.isNotBlank() }.all { w -> "${e.title} ${e.caption} ${e.words}".lowercase().contains(w) } }
-                if (hits.isEmpty()) T("Nothing matches \u201c$query\u201d.", 14.sp, th.muted, Modifier.padding(8.dp))
-                hits.groupBy { if (q.isEmpty()) it.group else "" }.forEach { (group, rows) ->
-                    if (group.isNotEmpty()) T(group.uppercase(), 12.sp, th.muted, Modifier.padding(start = 4.dp, top = 8.dp), weight = FontWeight.SemiBold, tracking = 1.sp)
-                    Column(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp)) {
-                        rows.forEachIndexed { i, e ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(0.5.dp).background(th.hair))
-                            Row(Modifier.fillMaxWidth().clickable { query = ""; open = e.key }.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    T(e.title, 16.sp, th.fg, weight = FontWeight.SemiBold)
-                                    T(if (q.isEmpty()) e.caption else "${e.group} \u00b7 ${e.caption}", 13.sp, th.muted)
-                                }
-                                T("\u203A", 22.sp, th.muted)
-                            }
-                        }
+                if (q.isNotEmpty()) {
+                    val hits = SETTING_PAGES.filter { e -> q.split(' ').filter { it.isNotBlank() }.all { w -> "${e.title} ${e.caption} ${e.words}".lowercase().contains(w) } }
+                    if (hits.isEmpty()) T("Nothing matches \u201c$query\u201d.", 14.sp, th.muted, Modifier.padding(8.dp))
+                    else Column(Modifier.fillMaxWidth().card(22.dp)) { hits.forEach { e -> SettingRow(e.icon, e.title, "${e.group} \u00b7 ${e.caption}") { query = ""; open = e.key } } }
+                } else {
+                    SETTING_PAGES.groupBy { it.group }.forEach { (group, rows) ->
+                        T(group.uppercase(), 12.sp, th.muted, Modifier.padding(start = 4.dp, top = 8.dp), weight = FontWeight.SemiBold, tracking = 1.sp)
+                        Column(Modifier.fillMaxWidth().card(22.dp)) { rows.forEach { e -> SettingRow(e.icon, e.title, e.caption) { open = e.key } } }
                     }
                 }
             }
@@ -495,18 +501,37 @@ fun SettingsScreen(
 }
 
 /** Settings pages for the list and search: group, key, title, caption and extra words that find settings inside. */
-data class SettingPage(val group: String, val key: String, val title: String, val caption: String, val words: String)
+data class SettingPage(val group: String, val key: String, val icon: ImageVector, val title: String, val caption: String, val words: String)
 
 val SETTING_PAGES = listOf(
-    SettingPage("Your app", "general", "Display", "Light or dark, colours, units, date and time", "appearance theme dark light colour color scheme units temperature celsius fahrenheit weight kg lb stone distance currency date format time 24 hour week starts timezone"),
-    SettingPage("Your app", "notifications", "Notifications", "Overdue tasks, countdowns, problems", "notify alerts overdue tasks countdowns failed refresh sources"),
-    SettingPage("Home and extras", "dashboard", "Home cards", "Which cards show on Home, and their order", "home cards order rearrange hide show wide steps sleep heart rate glance reset preview"),
-    SettingPage("You and targets", "profile", "You and targets", "Name, steps, sleep, health cards", "name picture avatar steps sleep calories protein carbs fat fibre water weigh-ins health cards targets"),
-    SettingPage("Data and help", "connections", "Data and connections", "Notion token, birthday, refresh", "notion token birthday dob life bar calendar health connect permissions refresh background interval launch errors"),
-    SettingPage("Data and help", "advanced", "Advanced", "Version, sources, export, licence", "version sources errors export import preferences clipboard cache github releases licence font"),
+    SettingPage("Your app", "general", Icons.Rounded.Palette, "Appearance", "Light or dark, colours, units, date and time", "display theme dark light colour color scheme units temperature celsius fahrenheit weight kg lb stone distance currency date format time 24 hour week starts timezone"),
+    SettingPage("Your app", "notifications", Icons.Rounded.Notifications, "Notifications", "Overdue tasks, countdowns, problems", "notify alerts overdue tasks countdowns failed refresh sources"),
+    SettingPage("Home and extras", "dashboard", Icons.Rounded.SwapVert, "Home", "Which cards show on Home, and their order", "home cards order rearrange hide show wide steps sleep heart rate glance reset preview"),
+    SettingPage("You and targets", "profile", Icons.Rounded.Person, "Profile and targets", "Name, picture, steps, sleep, health cards", "name picture avatar steps sleep calories protein carbs fat fibre water weigh-ins health cards targets goals"),
+    SettingPage("Data and help", "connections", Icons.Rounded.Link, "Data and connections", "Notion token, birthday, refresh", "notion token birthday dob life bar calendar health connect permissions refresh background interval launch errors"),
+    SettingPage("Data and help", "advanced", Icons.Rounded.Info, "About and advanced", "Version, sources, export, licence", "about version sources errors export import preferences clipboard cache github releases licence font socials"),
 )
 
-val PAGE_TITLES = mapOf("general" to "Display", "profile" to "You and targets", "dashboard" to "Home cards", "connections" to "Data and connections", "notifications" to "Notifications", "advanced" to "Advanced")
+/** A settings row, the same as Woozy Fit's ListRow: icon, title, caption, chevron. */
+@Composable
+internal fun SettingRow(icon: ImageVector, title: String, caption: String, onClick: () -> Unit) {
+    val th = LocalTh.current
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (th.flat) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(th.tab[0].copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = th.tab[0], modifier = Modifier.size(22.dp))
+            }
+        } else Icon(icon, contentDescription = null, tint = if (th.glass) th.fg else th.tab[0], modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            T(title, 16.sp, th.fg)
+            T(caption, 13.sp, th.muted)
+        }
+        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = th.muted, modifier = Modifier.size(24.dp))
+    }
+}
+
+val PAGE_TITLES = mapOf("general" to "Appearance", "profile" to "Profile and targets", "dashboard" to "Home", "connections" to "Data and connections", "notifications" to "Notifications", "advanced" to "About and advanced")
 
 /** Woozypictures socials, shown in About in every app. */
 val SOCIALS = listOf(
