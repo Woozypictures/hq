@@ -153,3 +153,10 @@ Profile picture circle in the header (tap choose, long-press remove), v0.22. His
 
 ## 15. 12 Nov 2026 (evening): profile picture = Notion page icon
 The picture is no longer chosen in the app. Every refresh `NotionSrc.pageIcon` reads the icon of the DASHBOARD page (`Avatar.DASHBOARD_PAGE`); `Avatar.sync` downloads it only when the icon's stable id (file link without its signature) changes, centre-crops to 384 px and stores `avatar.jpg`. Emoji or no icon removes the picture (initial shown). A failure appears as "Profile picture" in Settings > Advanced and keeps the old picture. HQ shares the file with HQ Fit through `AvatarProvider` (`content://uk.woozy.hq.avatar/avatar`, signature permission `uk.woozy.hq.permission.READ_AVATAR`, declared by both apps). Choose/Remove photo removed from Settings. NOT tested on a phone.
+
+## 16. 16 Nov 2026: in line with Woozy Fit (GymMane round)
+- Backup branch `backup/pre-gymmane` (pre-change state).
+- Settings: search field (matches page names + hidden keywords in `SETTING_PAGES`), grouped list (Your app / Home and extras / You and targets / Data and help), round back button with big title that shrinks into a small centred one on scroll (local NestedScrollConnection). `Section()` now only draws the open page.
+- Home cards page: live mini preview of Home at the top.
+- Battery question in MainActivity is now a ModalBottomSheet (Allow pill / Not now), no centre pop-ups left. HQ has no dropdown menus.
+- CI run 93 green.
