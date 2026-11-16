@@ -36,6 +36,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.SolidColor as SC
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.pointer.pointerInput
@@ -181,13 +184,9 @@ fun SettingsScreen(
 
 
     // Like Woozy Fit: a list of rows, each opening its own page. Only the open page draws its content.
+    // The list of pages is drawn once at the top (with search); a Section only draws its page when it is open.
     @Composable fun Section(key: String, title: String, content: @Composable () -> Unit) {
-        if (open.isEmpty()) {
-            Row(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp).clickable { open = key }.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                T(title, 16.sp, th.fg, Modifier.weight(1f), weight = FontWeight.SemiBold)
-                T("\u203A", 22.sp, th.muted)
-            }
-        } else if (open == key) {
+        if (open == key) {
             Column(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp).padding(16.dp)) { content() }
         }
     }
@@ -225,13 +224,38 @@ fun SettingsScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClick = { if (open.isNotEmpty()) open = "" else onBack() }), contentAlignment = Alignment.Center) {
-                Icon(BACK_ARROW, contentDescription = "Back", tint = th.fg, modifier = Modifier.size(24.dp))
+    // Shrinking title (as in Woozy Fit): a round back button over a big title that folds into a small centred one
+    // as the page scrolls.
+    val density = LocalDensity.current
+    val bigPx = with(density) { 48.dp.toPx() }
+    var fold by remember { mutableStateOf(0f) }
+    LaunchedEffect(open) { fold = 0f }
+    val conn = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (available.y >= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val old = fold; fold = (fold - available.y).coerceAtMost(bigPx); return androidx.compose.ui.geometry.Offset(0f, old - fold)
             }
-            Spacer(Modifier.width(8.dp))
-            T(PAGE_TITLES[open] ?: "Settings", 26.sp, th.fg, Modifier.weight(1f), weight = FontWeight.Bold)
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (available.y <= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val old = fold; fold = (fold - available.y).coerceAtLeast(0f); return androidx.compose.ui.geometry.Offset(0f, old - fold)
+            }
+        }
+    }
+    val frac = (fold / bigPx).coerceIn(0f, 1f)
+    val title = PAGE_TITLES[open] ?: "Settings"
+    var query by rememberSaveable { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().background(th.bg).statusBarsPadding().nestedScroll(conn)) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.08f))
+                    .clickable(onClick = { if (open.isNotEmpty()) open = "" else onBack() }),
+                contentAlignment = Alignment.Center,
+            ) { Icon(BACK_ARROW, contentDescription = "Back", tint = th.fg, modifier = Modifier.size(22.dp)) }
+            T(title, 17.sp, th.fg, Modifier.align(Alignment.Center).padding(horizontal = 56.dp).graphicsLayer { alpha = ((frac - 0.5f) * 2f).coerceIn(0f, 1f) }, weight = FontWeight.SemiBold, maxLines = 1)
+        }
+        Box(Modifier.fillMaxWidth().height(with(density) { (bigPx - fold).coerceAtLeast(0f).toDp() }).clipToBounds().padding(horizontal = 20.dp), contentAlignment = Alignment.BottomStart) {
+            T(title, 30.sp, th.fg, Modifier.graphicsLayer { alpha = 1f - frac }, weight = FontWeight.Bold, maxLines = 1)
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
@@ -239,6 +263,40 @@ fun SettingsScreen(
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (open.isEmpty()) {
+                // Search (as in Woozy Fit): finds a page by its name or by any setting inside it.
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(50)).background(if (th.glass) Color(0x1FFFFFFF) else lerp(th.panel, th.fg, 0.07f))
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BasicTextField(
+                        value = query, onValueChange = { query = it }, singleLine = true,
+                        textStyle = TextStyle(fontFamily = GSans, fontSize = 16.sp, color = th.fg), cursorBrush = SolidColor(th.fg),
+                        decorationBox = { inner -> Box { if (query.isEmpty()) T("Search settings", 16.sp, th.muted); inner() } },
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (query.isNotEmpty()) T("\u2715", 16.sp, th.muted, Modifier.clip(CircleShape).clickable { query = "" }.padding(6.dp))
+                }
+                val q = query.trim().lowercase()
+                val hits = if (q.isEmpty()) SETTING_PAGES else SETTING_PAGES.filter { e -> q.split(' ').filter { it.isNotBlank() }.all { w -> "${e.title} ${e.caption} ${e.words}".lowercase().contains(w) } }
+                if (hits.isEmpty()) T("Nothing matches \u201c$query\u201d.", 14.sp, th.muted, Modifier.padding(8.dp))
+                hits.groupBy { if (q.isEmpty()) it.group else "" }.forEach { (group, rows) ->
+                    if (group.isNotEmpty()) T(group.uppercase(), 12.sp, th.muted, Modifier.padding(start = 4.dp, top = 8.dp), weight = FontWeight.SemiBold, tracking = 1.sp)
+                    Column(Modifier.fillMaxWidth().card(if (th.flat) 22.dp else 18.dp)) {
+                        rows.forEachIndexed { i, e ->
+                            if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(0.5.dp).background(th.hair))
+                            Row(Modifier.fillMaxWidth().clickable { query = ""; open = e.key }.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    T(e.title, 16.sp, th.fg, weight = FontWeight.SemiBold)
+                                    T(if (q.isEmpty()) e.caption else "${e.group} \u00b7 ${e.caption}", 13.sp, th.muted)
+                                }
+                                T("\u203A", 22.sp, th.muted)
+                            }
+                        }
+                    }
+                }
+            }
             Section("general", "Display") {
                 Opts("Appearance", listOf("system" to "Match phone", "light" to "Light", "dark" to "Dark"), s.appearance) { onChange(s.copy(appearance = it)) }
                 SchemePicker(s.theme) { onChange(s.copy(theme = it)) }
@@ -278,6 +336,30 @@ fun SettingsScreen(
             }
 
             Section("dashboard", "Home cards") {
+                // Live mini preview of Home, updating as you switch cards and move them (as in Woozy Fit).
+                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.Center) {
+                    Column(
+                        Modifier.width(132.dp).clip(RoundedCornerShape(22.dp)).background(th.bg).border(1.dp, th.hair, RoundedCornerShape(22.dp)).padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Box(Modifier.width(60.dp).height(9.dp).clip(RoundedCornerShape(4.dp)).background(th.fg.copy(alpha = 0.7f)))
+                        val vis = s.homeOrder.filter { it !in s.homeHidden }
+                        var i = 0
+                        while (i < vis.size) {
+                            val k = vis[i]
+                            val small = k in listOf("steps", "sleep", "rhr") && k !in s.homeWide
+                            if (small) {
+                                val run = vis.drop(i).takeWhile { it in listOf("steps", "sleep", "rhr") && it !in s.homeWide }.take(3)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { run.forEach { _ -> Box(Modifier.weight(1f).height(22.dp).clip(RoundedCornerShape(6.dp)).background(th.panel)) } }
+                                i += run.size
+                            } else {
+                                Box(Modifier.fillMaxWidth().height(if (i == 0) 40.dp else 26.dp).clip(RoundedCornerShape(7.dp)).background(if (i == 0) th.tab[0].copy(alpha = 0.55f) else th.panel))
+                                i++
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
                 val keys = s.homeOrder.filter { it !in listOf("steps", "sleep", "rhr") }
                 val cur by rememberUpdatedState(s)
                 val change by rememberUpdatedState(onChange)
@@ -411,6 +493,18 @@ fun SettingsScreen(
         }
     }
 }
+
+/** Settings pages for the list and search: group, key, title, caption and extra words that find settings inside. */
+data class SettingPage(val group: String, val key: String, val title: String, val caption: String, val words: String)
+
+val SETTING_PAGES = listOf(
+    SettingPage("Your app", "general", "Display", "Light or dark, colours, units, date and time", "appearance theme dark light colour color scheme units temperature celsius fahrenheit weight kg lb stone distance currency date format time 24 hour week starts timezone"),
+    SettingPage("Your app", "notifications", "Notifications", "Overdue tasks, countdowns, problems", "notify alerts overdue tasks countdowns failed refresh sources"),
+    SettingPage("Home and extras", "dashboard", "Home cards", "Which cards show on Home, and their order", "home cards order rearrange hide show wide steps sleep heart rate glance reset preview"),
+    SettingPage("You and targets", "profile", "You and targets", "Name, steps, sleep, health cards", "name picture avatar steps sleep calories protein carbs fat fibre water weigh-ins health cards targets"),
+    SettingPage("Data and help", "connections", "Data and connections", "Notion token, birthday, refresh", "notion token birthday dob life bar calendar health connect permissions refresh background interval launch errors"),
+    SettingPage("Data and help", "advanced", "Advanced", "Version, sources, export, licence", "version sources errors export import preferences clipboard cache github releases licence font"),
+)
 
 val PAGE_TITLES = mapOf("general" to "Display", "profile" to "You and targets", "dashboard" to "Home cards", "connections" to "Data and connections", "notifications" to "Notifications", "advanced" to "Advanced")
 

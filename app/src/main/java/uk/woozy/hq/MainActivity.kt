@@ -192,18 +192,27 @@ class MainActivity : ComponentActivity() {
                     }
                     if (batteryAsk) {
                         val done = { batteryAsk = false; getSharedPreferences("battery", MODE_PRIVATE).edit().putBoolean("asked", true).apply() }
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = done,
-                            title = { T("Keep HQ up to date", 18.sp, th.fg, weight = FontWeight.SemiBold) },
-                            text = { T("Let Woozy HQ run without battery limits, so the widget and your health numbers refresh on time in the background.", 14.sp, th.muted) },
-                            confirmButton = {
-                                androidx.compose.material3.TextButton(onClick = {
-                                    done()
-                                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) }
-                                }) { T("Allow", 15.sp, th.fg, weight = FontWeight.SemiBold) }
-                            },
-                            dismissButton = { androidx.compose.material3.TextButton(onClick = done) { T("Not now", 15.sp, th.muted) } },
-                        )
+                        // A sheet from the bottom, like every question in the apps (not a pop-up in the middle).
+                        @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                        androidx.compose.material3.ModalBottomSheet(onDismissRequest = done, containerColor = th.panel) {
+                            Column(
+                                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                T("Keep HQ up to date", 19.sp, th.fg, weight = FontWeight.SemiBold, center = true)
+                                T("Let Woozy HQ run without battery limits, so the widget and your health numbers refresh on time in the background.", 14.sp, th.muted, center = true)
+                                Box(
+                                    Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(50)).background(th.tab[0])
+                                        .clickable {
+                                            done()
+                                            runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) }
+                                        }.padding(vertical = 14.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { T("Allow", 16.sp, th.onTab, weight = FontWeight.SemiBold) }
+                                T("Not now", 15.sp, th.muted, Modifier.clip(RoundedCornerShape(50)).clickable { done() }.padding(horizontal = 16.dp, vertical = 10.dp), weight = FontWeight.Medium)
+                            }
+                        }
                     }
                     androidx.compose.animation.AnimatedVisibility(splash, exit = androidx.compose.animation.fadeOut(tween(220))) {
                         Box(Modifier.fillMaxSize().background(th.bg), contentAlignment = Alignment.Center) {
