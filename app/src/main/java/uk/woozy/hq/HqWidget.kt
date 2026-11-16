@@ -82,7 +82,8 @@ class HqWidget : AppWidgetProvider() {
             val stroke = (h * 2.66f / 296f).coerceAtLeast(1f * d)
             val inset = stroke / 2f
             val rect = RectF(inset, inset, w - inset, h - inset)
-            val radius = h * 74.97f / 296f
+            // Same corner as the other glass widgets on the home screen (about 26dp), whatever the widget height.
+            val radius = minOf(h * 74.97f / 296f, 26f * d)
             cv.drawRoundRect(rect, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(0f, 0f, w.toFloat(), 0f, 0x0EFFFFFF, 0x37FFFFFF, Shader.TileMode.CLAMP)
             })
@@ -108,33 +109,49 @@ class HqWidget : AppWidgetProvider() {
             val detail = tp(12f * scale, 0x8CFFFFFF.toInt())
             val muted = tp(12f * scale, 0x66FFFFFF)
 
-            val padX = h * 50f / 296f + radius * 0.35f
+            val padX = 22f * d
             val left = padX; val right = w - padX
-            val split = left + (right - left) * 0.65f
+            val split = left + (right - left) * 0.62f
             val gutter = 12f * d
+            // Taller widget: the task gets two lines and the next task shows under it; the right side lists two events.
+            val tall = hDp >= 90
 
-            // Left zone: micro-label and the top Notion task on one line.
+            // Left zone: micro-label and the top Notion task.
             val mail = s.feed?.optJSONArray("emails")?.length() ?: 0
             val lbl = when {
                 mail == 1 -> "TOP PRIORITY · 1 REPLY DUE"
                 mail > 1 -> "TOP PRIORITY · $mail REPLIES DUE"
                 else -> "TOP PRIORITY"
             }
-            val top = s.tasks?.firstOrNull()?.title?.let { clean(it) }?.takeIf { it.isNotEmpty() }
-                ?: if (Store.token(c).isEmpty()) "Open HQ to set up" else "Nothing in Do now"
+            val tasks = s.tasks.orEmpty().map { clean(it.title) }.filter { it.isNotEmpty() }
+            val top = tasks.firstOrNull() ?: if (Store.token(c).isEmpty()) "Open HQ to set up" else "Nothing in Do now"
+            val lw = split - gutter - left
+            // Up to two lines of the top task: fill line one by words, the rest ellipsised on line two.
+            val lines = mutableListOf<String>()
+            if (tall && title.measureText(top) > lw) {
+                val words = top.split(' ')
+                var first = ""
+                var i = 0
+                while (i < words.size && title.measureText((first + " " + words[i]).trim()) <= lw) { first = (first + " " + words[i]).trim(); i++ }
+                if (first.isEmpty()) lines += top else { lines += first; lines += words.drop(i).joinToString(" ") }
+            } else lines += top
+            val second = if (tall) tasks.getOrNull(1) else null
             val gapL = 6f * d
-            val blockL = label.textSize + gapL + title.textSize
+            val lineGap = 4f * d
+            val blockL = label.textSize + gapL + lines.size * title.textSize + (lines.size - 1) * lineGap + (if (second != null) gapL + 2f * d + muted.textSize else 0f)
             var y = (h - blockL) / 2f + label.textSize * 0.82f
-            text(lbl, left, y, label, split - gutter - left)
-            y += gapL + title.textSize
-            text(top, left, y, title, split - gutter - left)
+            text(lbl, left, y, label, lw)
+            y += gapL
+            lines.forEach { l -> y += title.textSize; text(l, left, y, title, lw); y += lineGap }
+            y -= lineGap
+            if (second != null) { y += gapL + 2f * d + muted.textSize; text("Then: $second", left, y, muted, lw) }
 
             // Hairline divider, the rim colour at its right-hand strength.
             val divTop = h * 0.26f; val divBot = h * 0.74f
             cv.drawLine(split, divTop, split, divBot, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x3AFFFFFF; strokeWidth = 1f * d })
 
-            // Right zone: next event over today's training, right-aligned.
-            val ev = nextEvent(s)?.let { clean(it) } ?: "No more events"
+            // Right zone: next event(s) over today's training, right-aligned. An event already under way says "Now".
+            val evs = nextEvents(s, if (tall) 2 else 1).map { clean(it) }.ifEmpty { listOf("No more events") }
             val today = LocalDate.now().toString()
             val f = s.fit
             val plan = when {
@@ -144,10 +161,10 @@ class HqWidget : AppWidgetProvider() {
                 else -> ""
             }
             val gapR = 7f * d
-            val blockR = detail.textSize + (if (plan.isEmpty()) 0f else gapR + muted.textSize)
+            val blockR = evs.size * detail.textSize + (evs.size - 1) * gapR + (if (plan.isEmpty()) 0f else gapR + muted.textSize)
             var yr = (h - blockR) / 2f + detail.textSize * 0.82f
             val rw = right - split - gutter
-            text(ev, right, yr, detail, rw, right = true)
+            evs.forEachIndexed { i, e -> if (i > 0) yr += gapR + detail.textSize; text(e, right, yr, detail, rw, right = true) }
             if (plan.isNotEmpty()) { yr += gapR + muted.textSize; text(plan, right, yr, muted, rw, right = true) }
             return bmp
         }
@@ -163,6 +180,7 @@ class HqWidget : AppWidgetProvider() {
         private fun fmt(e: Event): String {
             if (e.allDay) return e.title
             val z = ZoneId.systemDefault()
+            if (e.start <= System.currentTimeMillis()) return "Now · ${e.title}"
             val t = Instant.ofEpochMilli(e.start).atZone(z)
             val today = LocalDate.now(z)
             val day = when (t.toLocalDate()) {

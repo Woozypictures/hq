@@ -6,7 +6,7 @@
     android:targetCellHeight="1"
     android:minResizeWidth="180dp"
     android:minResizeHeight="50dp"
-    android:maxResizeHeight="110dp"
+    android:maxResizeHeight="170dp"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/widget"
