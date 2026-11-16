@@ -110,6 +110,34 @@ object HealthExtraSrc {
         )
     }
 
+    /** One workout as Health Connect has it, before merging. */
+    internal data class RawSession(val startMs: Long, val endMs: Long, val name: String, val origin: String)
+
+    /** Source priority when the same workout arrives from several apps: Woozy Fit, then Samsung Health/watch, then others. */
+    internal fun priority(origin: String) = when {
+        origin.startsWith("uk.woozy.fit") -> 0
+        origin == "com.sec.android.app.shealth" || origin.contains("samsung") -> 1
+        else -> 2
+    }
+
+    /**
+     * Deterministic merge: drop accidental starts (under 2 minutes); two workouts that overlap by at least half of the
+     * shorter one are the same workout, and only the highest-priority source is kept (ties: the longer one).
+     */
+    internal fun mergeSessions(raw: List<RawSession>): List<Session> {
+        val kept = ArrayList<RawSession>()
+        raw.filter { it.endMs - it.startMs >= 120_000 }
+            .sortedWith(compareBy<RawSession>({ priority(it.origin) }, { -(it.endMs - it.startMs) }))
+            .forEach { r ->
+                val dup = kept.any { k ->
+                    val overlap = minOf(k.endMs, r.endMs) - maxOf(k.startMs, r.startMs)
+                    overlap > 0 && overlap * 2 >= minOf(k.endMs - k.startMs, r.endMs - r.startMs)
+                }
+                if (!dup) kept += r
+            }
+        return kept.sortedByDescending { it.startMs }.map { Session(it.startMs, it.name, (it.endMs - it.startMs) / 60_000) }
+    }
+
     /** Workouts (last 7 days) and heart rate variability. Null when neither permission is granted yet. */
     suspend fun readSport(c: Context): SportData? {
         val (hc, g) = client(c)
@@ -118,10 +146,11 @@ object HealthExtraSrc {
         val ex = androidx.health.connect.client.records.ExerciseSessionRecord::class
         val hv = androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord::class
         if (!has(g, ex) && !has(g, hv)) return null
-        val sessions = if (has(g, ex)) hc.readRecords(ReadRecordsRequest(ex, week, ascendingOrder = false, pageSize = 100)).records.map {
-            val name = androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_INT_TO_STRING_MAP[it.exerciseType] ?: "workout"
-            Session(it.startTime.toEpochMilli(), name.replace('_', ' ').replaceFirstChar { ch -> ch.uppercase() }, Duration.between(it.startTime, it.endTime).toMinutes())
-        } else emptyList()
+        val sessions = if (has(g, ex)) mergeSessions(hc.readRecords(ReadRecordsRequest(ex, week, ascendingOrder = false, pageSize = 100)).records.map {
+            val type = androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_INT_TO_STRING_MAP[it.exerciseType] ?: "workout"
+            val name = it.title?.takeIf { t -> t.isNotBlank() } ?: type.replace('_', ' ').replaceFirstChar { ch -> ch.uppercase() }
+            RawSession(it.startTime.toEpochMilli(), it.endTime.toEpochMilli(), name, it.metadata.dataOrigin.packageName)
+        }) else emptyList()
         var latest: Double? = null
         var avg: Double? = null
         if (has(g, hv)) {
