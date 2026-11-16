@@ -109,23 +109,25 @@ class HqTabletWidget : AppWidgetProvider() {
 
             // Outer card: Music Player Glass fill and rim. Corner kept to the tile ratio (24.89 / 112) of the tile row
             // so the card and its tiles share one curve family.
+            // Outer corner matches the other glass widgets on the home screen (about 28dp); the tiles sit [pad] inside it
+            // and use the concentric inner radius, so the card and tiles read as one shape.
             val stroke = (1f * d).coerceAtLeast(1f)
             val topH = h * TOP
             val rowH = h - topH
-            val pad = (16f * d).coerceAtMost(rowH * 0.14f)
+            val pad = (12f * d).coerceAtMost(rowH * 0.2f)
             val tileH = rowH - pad
-            val tileR = tileH * 24.89f / 112f
-            val cardR = tileR + pad * 0.6f
+            val cardR = minOf(28f * d, h * 0.2f)
+            val tileR = (cardR - pad).coerceAtLeast(10f * d)
             glass(cv, RectF(stroke / 2, stroke / 2, w - stroke / 2, h - stroke / 2), cardR, stroke)
 
             val label = tp(11f, 0x8CFFFFFF.toInt(), bold, 0.08f)
-            val title = tp(19f, HqWidget.TXT)
+            val title = tp(20f, HqWidget.TXT)
             val detail = tp(13.5f, 0x8CFFFFFF.toInt())
             val muted = tp(13.5f, 0x66FFFFFF)
 
-            val padX = pad + cardR * 0.35f
+            val padX = pad + cardR * 0.45f
             val left = padX; val right = w - padX
-            val split = left + (right - left) * 0.55f
+            val split = left + (right - left) * 0.58f
             val gutter = 16f * d
             val gap = 7f * d
             val areaTop = pad * 0.6f
