@@ -72,7 +72,7 @@ internal fun MuscleMapContent(rows: List<MuscleRow>?, accent: Color) {
         1 -> rows.associate { it.key to (it.month / (10.0 * 30 / 7)).toFloat().coerceIn(0f, 1f) }
         else -> rows.associate { r -> r.key to (r.lastHit?.let { 1f - (now - it) / (72f * 3_600_000f) } ?: 0f).coerceIn(0f, 1f) }
     }
-    HqBodyMap(values, if (tab == 2) th.warn else accent, Modifier.fillMaxWidth().aspectRatio(2.2f))
+    HqBodyMap(values, if (tab == 2) th.warn else accent, Modifier.fillMaxWidth().aspectRatio(1.3f))
     Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
         T("Front", 12.sp, th.muted); T("Back", 12.sp, th.muted)
     }
